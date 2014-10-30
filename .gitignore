@@ -1,0 +1,4 @@
+sbt/sbt-launch*
+target/
+.idea/
+.idea_modules/
