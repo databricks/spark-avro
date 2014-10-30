@@ -1,4 +1,4 @@
-sbt/sbt-launch*
+sbt/sbt-launch*.jar
 target/
 .idea/
 .idea_modules/
