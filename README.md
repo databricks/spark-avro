@@ -1,6 +1,6 @@
 # Spark SQL Avro Library
 
-A library for quering Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
+A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
 ## Building
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root.
@@ -54,7 +54,7 @@ res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's
 Avro data can be queried in pure SQL by registering the data as a temporary table.
 
 ```sql
-CREATE TEMPORARY TABLE avroTable
+CREATE TEMPORARY TABLE episodes
 USING org.apache.spark.sql.avro
 OPTIONS (path "../sql-avro/src/test/resources/episodes.avro")
 ```
