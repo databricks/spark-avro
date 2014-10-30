@@ -30,7 +30,7 @@ Spark context available as sc.
 
 ### Scala API
 
-You can use the library by loading the implicits from `org.apache.spark.sql.avro`.
+You can use the library by loading the implicits from `org.apache.spark.sql.avro._`.
 
 ```
 scala> import org.apache.spark.sql.avro._
@@ -65,5 +65,5 @@ Avro files can be read using static functions in AvroUtils.
 ```java
 import org.apache.spark.sql.avro.AvroUtils;
 
-JavaSchemaRDD episodes = AvroUtils.loadAvroFile(sqlContext, "../sql-avro/src/test/resources/episodes.avro");
+JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "../sql-avro/src/test/resources/episodes.avro");
 ```

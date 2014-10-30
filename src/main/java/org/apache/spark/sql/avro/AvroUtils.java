@@ -24,7 +24,7 @@ import org.apache.spark.sql.api.java.JavaSchemaRDD;
  */
 public class AvroUtils {
     /** Returns a Schema RDD for the given avro path. */
-    public static JavaSchemaRDD loadAvroFile(JavaSQLContext sqlContext, String path) {
+    public static JavaSchemaRDD avroFile(JavaSQLContext sqlContext, String path) {
         AvroRelation relation = new AvroRelation(path, sqlContext.sqlContext());
         return sqlContext.baseRelationToSchemaRDD(relation);
     }
