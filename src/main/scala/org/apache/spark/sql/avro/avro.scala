@@ -31,21 +31,9 @@ package object avro {
       sqlContext.baseRelationToSchemaRDD(AvroRelation(filePath)(sqlContext))
   }
 
+  // TODO: Implement me.
   implicit class AvroSchemaRDD(schemaRDD: SchemaRDD) {
-    def saveAsAvroFile(path: String): Unit = {
-      /*
-      val avroSchema = toAvroSchema(schemaRDD.schema)
-      val convertedRDD = schemaRDD.map {
-
-      }
-
-      convertedRDD.saveAsNewAPIHadoopFile(outputPath,
-        classOf[AvroKey[GenericRecord]],
-        classOf[org.apache.hadoop.io.NullWritable],
-        classOf[AvroKeyOutputFormat[GenericRecord]],
-        job.getConfiguration)
-        */
-    }
+    def saveAsAvroFile(path: String): Unit = ???
   }
 }
 
