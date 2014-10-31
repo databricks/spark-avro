@@ -28,8 +28,7 @@ import org.apache.spark.sql.sources.{TableScan, BaseRelation}
 
 import scala.collection.JavaConversions._
 
-case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
-  extends BaseRelation with TableScan {
+case class AvroRelation(location: String)(@transient val sqlContext: SQLContext) extends TableScan {
 
   val schema = {
     val fileReader = newReader()
