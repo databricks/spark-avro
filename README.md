@@ -30,11 +30,11 @@ Spark context available as sc.
 
 ### Scala API
 
-You can use the library by loading the implicits from `org.apache.spark.sql.avro._`.
+You can use the library by loading the implicits from `com.databricks.spark.avro._`.
 
 ```
-scala> import org.apache.spark.sql.avro._
-import org.apache.spark.sql.avro._
+scala> import com.databricks.spark.avro._
+import com.databricks.spark.avro._
 
 scala> val episodes = sqlContext.avroFile("../sqlAvro/src/test/resources/episodes.avro")
 episodes: org.apache.spark.sql.SchemaRDD = 
@@ -55,7 +55,7 @@ Avro data can be queried in pure SQL by registering the data as a temporary tabl
 
 ```sql
 CREATE TEMPORARY TABLE episodes
-USING org.apache.spark.sql.avro
+USING com.databricks.spark.avro
 OPTIONS (path "../sql-avro/src/test/resources/episodes.avro")
 ```
 
@@ -63,7 +63,7 @@ OPTIONS (path "../sql-avro/src/test/resources/episodes.avro")
 Avro files can be read using static functions in AvroUtils.
 
 ```java
-import org.apache.spark.sql.avro.AvroUtils;
+import com.databricks.spark.avro.AvroUtils;
 
 JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "../sql-avro/src/test/resources/episodes.avro");
 ```

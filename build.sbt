@@ -1,8 +1,8 @@
-name := "sql-avro"
+name := "spark-avro"
 
 version := "0.1"
 
-organization := "org.apache.spark.sql"
+organization := "com.databricks"
 
 scalaVersion := "2.10.4"
 
