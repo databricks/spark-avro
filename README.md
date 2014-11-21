@@ -2,23 +2,33 @@
 
 A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
-## Building
-This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root.
+## Requirements
 
-## Using with Spark
-This library requires Spark 1.2+.
+This library requires Spark 1.2+
 
-The jar file produced above can be added to a spark using the `--jars` command line option.  For example, to include it when starting the spark shell:
+## Linking
+You can link against this library in your program at the following coordiates:
 
 ```
-spark $ bin/spark-shell --jars ../sql-avro/target/scala-2.10/sql-avro_2.10-0.1.jar
+groupId: com.databricks.spark
+artifactId: spark-avro_2.10
+version: 0.1
+```
+<!---
+TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
+--->
+
+The spark-avro jar file can also be added to a Spark using the `--jars` command line option.  For example, to include it when starting the spark shell:
+
+```
+$ bin/spark-shell --jars sql-avro_2.10-0.1.jar
 
 Spark assembly has been built with Hive, including Datanucleus jars on classpath
 Welcome to
       ____              __
      / __/__  ___ _____/ /__
     _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 1.2.0-SNAPSHOT
+   /___/ .__/\_,_/_/ /_/\_\   version 1.2.0
       /_/
 
 Using Scala version 2.10.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_45)
@@ -28,15 +38,25 @@ Type :help for more information.
 Spark context available as sc.
 ```
 
+## Features
+These examples use an avro file available for download [here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
+
+```
+$ wget https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro
+```
+
 ### Scala API
 
 You can use the library by loading the implicits from `com.databricks.spark.avro._`.
 
 ```
-scala> import com.databricks.spark.avro._
-import com.databricks.spark.avro._
+scala> import org.apache.spark.sql.SQLContext
 
-scala> val episodes = sqlContext.avroFile("../sqlAvro/src/test/resources/episodes.avro")
+scala> val sqlContext = new SQLContext(sc)
+
+scala> import com.databricks.spark.avro._
+
+scala> val episodes = sqlContext.avroFile("episodes.avro")
 episodes: org.apache.spark.sql.SchemaRDD = 
 SchemaRDD[0] at RDD at SchemaRDD.scala:104
 == Query Plan ==
@@ -56,7 +76,7 @@ Avro data can be queried in pure SQL by registering the data as a temporary tabl
 ```sql
 CREATE TEMPORARY TABLE episodes
 USING com.databricks.spark.avro
-OPTIONS (path "../sql-avro/src/test/resources/episodes.avro")
+OPTIONS (path "episodes.avro")
 ```
 
 ### Java API
@@ -65,5 +85,9 @@ Avro files can be read using static functions in AvroUtils.
 ```java
 import com.databricks.spark.avro.AvroUtils;
 
-JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "../sql-avro/src/test/resources/episodes.avro");
+JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
+
+## Building From Source
+This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root.
+
