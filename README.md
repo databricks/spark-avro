@@ -21,7 +21,7 @@ TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
 The spark-avro jar file can also be added to a Spark using the `--jars` command line option.  For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --jars sql-avro_2.10-0.1.jar
+$ bin/spark-shell --jars spark-avro_2.10-0.1.jar
 
 Spark assembly has been built with Hive, including Datanucleus jars on classpath
 Welcome to
