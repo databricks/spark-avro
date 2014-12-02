@@ -66,7 +66,7 @@ PhysicalRDD [title#0,air_date#1,doctor#2], MappedRDD[2] at map at AvroRelation.s
 scala> import sqlContext._
 import sqlContext._
 
-scala> episodes.select('title).collect()
+scala> episodes.select('title').collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
