@@ -14,6 +14,9 @@ groupId: com.databricks.spark
 artifactId: spark-avro_2.10
 version: 0.1
 ```
+
+Using SBT: `libraryDependencies += "com.databricks.spark" %% "spark-avro" % "0.1"`
+
 <!---
 TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
 --->
