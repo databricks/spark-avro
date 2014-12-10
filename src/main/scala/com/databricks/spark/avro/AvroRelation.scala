@@ -108,9 +108,9 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
           nullable = false)
 
       case UNION => avroSchema.getTypes.toSeq match {
-        case Seq(t1) => toSqlType(t1).copy(nullable = true)
         case Seq(t1, t2) if t1.getType == NULL => toSqlType(t2).copy(nullable = true)
         case Seq(t1, t2) if t2.getType == NULL => toSqlType(t1).copy(nullable = true)
+        case Seq(t1) => toSqlType(t1).copy(nullable = true)
         case other =>
           sys.error(s"Union types with anything other than null not supported: $other")
       }

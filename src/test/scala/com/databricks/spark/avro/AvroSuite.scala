@@ -24,7 +24,7 @@ import TestSQLContext._
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
 
-  test("dsl test") {
+  test("dsl episode test") {
     val results = TestSQLContext
       .avroFile(episodesFile)
       .select('title)
@@ -33,7 +33,7 @@ class AvroSuite extends FunSuite {
     assert(results.size === 8)
   }
 
-  test("sql test") {
+  test("sql episode test") {
     sql(
       s"""
         |CREATE TEMPORARY TABLE avroTable
@@ -42,5 +42,27 @@ class AvroSuite extends FunSuite {
       """.stripMargin.replaceAll("\n", " "))
 
     assert(sql("SELECT * FROM avroTable").collect().size === 8)
+  }
+
+  val rallyABFile = "src/test/resources/rallyab.avro"
+
+  test("dsl rallyavro test") {
+    val results = TestSQLContext
+      .avroFile(rallyABFile)
+      .select('experiment)
+      .collect()
+
+    assert(results.size === 1)
+  }
+
+  test("sql rallyavro test") {
+    sql(
+      s"""
+        |CREATE TEMPORARY TABLE avroABTestTable
+        |USING com.databricks.spark.avro
+        |OPTIONS (path "$rallyABFile")
+      """.stripMargin.replaceAll("\n", " "))
+
+    assert(sql("SELECT * FROM avroABTestTable").collect().size === 1)
   }
 }
