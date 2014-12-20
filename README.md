@@ -73,8 +73,8 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
-### SQL API
-Avro data can be queried in pure SQL by registering the data as a temporary table.
+### Python and SQL API
+Avro data can be queried in pure SQL or from python by registering the data as a temporary table.
 
 ```sql
 CREATE TEMPORARY TABLE episodes
