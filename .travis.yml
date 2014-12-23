@@ -5,3 +5,7 @@ jdk:
   - openjdk7
   - openjdk6
 sudo: false
+script:
+  - sbt -jvm-opts travis/jvmopts.compile compile
+  - sbt -jvm-opts travis/jvmopts.test test
+  - sbt -jvm-opts travis/jvmopts.test scalastyle

@@ -117,3 +117,4 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     }
   }
 }
+

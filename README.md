@@ -2,6 +2,8 @@
 
 A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
+[![Build Status](https://travis-ci.org/databricks/spark-avro.svg?branch=master)](https://travis-ci.org/databricks/spark-avro)
+
 ## Requirements
 
 This library requires Spark 1.2+
