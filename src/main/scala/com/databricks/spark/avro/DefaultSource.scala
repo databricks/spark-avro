@@ -31,3 +31,4 @@ class DefaultSource extends RelationProvider {
     AvroRelation(parameters("path"))(sqlContext)
   }
 }
+
