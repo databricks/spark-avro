@@ -31,7 +31,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
 
   val schema = {
     val fileReader = newReader()
-    val convertedSchema = toSqlType(newReader().getSchema).dataType match {
+    val convertedSchema = toSqlType(fileReader.getSchema).dataType match {
       case s: StructType => s
       case other =>
         sys.error(s"Avro files must contain Records to be read, type $other not supported")
