@@ -15,21 +15,27 @@
  */
 package com.databricks.spark.avro
 
+import java.util.Map
+import java.nio.ByteBuffer
+
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileReader
 import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
 import org.apache.avro.mapred.FsInput
+import org.apache.avro.util.Utf8
+import org.apache.avro.generic.GenericData
+import org.apache.avro.generic.GenericData.{Fixed, EnumSymbol, Record}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.sql._
-import org.apache.spark.sql.sources.{TableScan, BaseRelation}
+import org.apache.spark.sql.sources.TableScan
 
 import scala.collection.JavaConversions._
 
 case class AvroRelation(location: String)(@transient val sqlContext: SQLContext) extends TableScan {
 
-  val schema = {
+  override val schema = {
     val fileReader = newReader()
     val convertedSchema = toSqlType(fileReader.getSchema).dataType match {
       case s: StructType => s
@@ -40,8 +46,31 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     convertedSchema
   }
 
+  def convertToSparkSQL(obj: Any): Any = {
+    obj match {
+      case u: Utf8 => u.toString
+      case m: Map[Any, Any] => m.map(x => (x._1.toString, convertToSparkSQL(x._2)))
+      case a: GenericData.Array[Any] => a.map(x => convertToSparkSQL(x))
+      case f: Fixed => f.bytes.clone
+      case e: EnumSymbol => e.toString
+      case r: Record => Row.fromSeq((0 until r.getSchema.getFields.size).map { i =>
+        convertToSparkSQL(r.get(i))
+      })
+      case h: ByteBuffer => {
+        val ar = new Array[Byte](h.remaining)
+        var idx = 0
+        while (h.hasRemaining) {
+          ar(idx) = h.get
+          idx += 1
+        }
+        ar
+      }
+      case other => other
+    }
+  }
+
   // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
-  lazy val buildScan = {
+  override lazy val buildScan = {
     val baseRdd = sqlContext.sparkContext.hadoopFile(
       location,
       classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
@@ -51,10 +80,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
 
     baseRdd.map { record =>
       val values = (0 until schema.fields.size).map { i =>
-        record._1.datum().get(i) match {
-          case u: org.apache.avro.util.Utf8 => u.toString
-          case other => other
-        }
+        convertToSparkSQL(record._1.datum().get(i))
       }
 
       Row.fromSeq(values)
@@ -91,6 +117,9 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
       case FLOAT => SchemaType(FloatType, nullable = false)
+      case LONG => SchemaType(LongType, nullable = false)
+      case FIXED => SchemaType(BinaryType, nullable = false)
+      case ENUM => SchemaType(StringType, nullable = false)
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
@@ -106,15 +135,28 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
           ArrayType(schemaType.dataType, containsNull = schemaType.nullable),
           nullable = false)
 
-      case UNION => avroSchema.getTypes.toSeq match {
-        case Seq(t1, t2) if t1.getType == NULL => toSqlType(t2).copy(nullable = true)
-        case Seq(t1, t2) if t2.getType == NULL => toSqlType(t1).copy(nullable = true)
-        case other =>
-          sys.error(s"Union types with anything other than null not supported: $other")
+      case MAP =>
+        val schemaType = toSqlType(avroSchema.getValueType)
+        SchemaType(
+          MapType(StringType, schemaType.dataType, valueContainsNull = schemaType.nullable),
+          nullable = false)
+
+      case UNION => {
+        if (avroSchema.getTypes.map(x => x.getType).contains(NULL)) {
+          // In case of a union with null, eliminate it and make a recursive call
+          toSqlType(Schema.createUnion(
+            avroSchema.getTypes.filterNot(elm => elm.getType == NULL))).copy(nullable = true)
+        } else avroSchema.getTypes.toSeq match {
+          case Seq(t1, t2) if Set(t2.getType, t1.getType) == Set(INT, LONG) =>
+            SchemaType(LongType, nullable = false)
+          case Seq(t1, t2) if Set(t2.getType, t1.getType) == Set(FLOAT, DOUBLE) =>
+            SchemaType(DoubleType, nullable = false)
+          case other =>
+            sys.error(s"This mix of union types is not supported (see README): $other")
+        }
       }
 
       case other => sys.error(s"Unsupported type $other")
     }
   }
 }
-
