@@ -46,11 +46,24 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     convertedSchema
   }
 
+  // There are several properties of Avro that we have to account for in this method:
+  // 1) Avro uses Utf8 strings, so we want to convert them to java.lang.String for SparkSQL,
+  //    including making the appropriate recursive calls.
+  // 2) Avro map keys are always strings, so we don't need to recurse on them when processing maps.
+  // 3) Byte arrays and ByteBuffers are reused by Avro, so we must copy them out.
   def convertToSparkSQL(obj: Any): Any = {
     obj match {
       case u: Utf8 => u.toString
       case m: Map[Any, Any] => m.map(x => (x._1.toString, convertToSparkSQL(x._2)))
-      case a: GenericData.Array[Any] => a.map(x => convertToSparkSQL(x))
+      case a: GenericData.Array[Any] => {
+        val ar = new Array[Any](a.size)
+        var idx = 0
+        while (idx < a.size) {
+          ar(idx) = convertToSparkSQL(a(0))
+          idx += 1
+        }
+        ar.toSeq
+      }
       case f: Fixed => f.bytes.clone
       case e: EnumSymbol => e.toString
       case r: Record => Row.fromSeq((0 until r.getSchema.getFields.size).map { i =>
@@ -58,11 +71,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
       })
       case h: ByteBuffer => {
         val ar = new Array[Byte](h.remaining)
-        var idx = 0
-        while (h.hasRemaining) {
-          ar(idx) = h.get
-          idx += 1
-        }
+        h.get(ar)
         ar
       }
       case other => other
@@ -142,14 +151,14 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
           nullable = false)
 
       case UNION => {
-        if (avroSchema.getTypes.map(x => x.getType).contains(NULL)) {
+        if (avroSchema.getTypes.exists(_.getType == NULL)) {
           // In case of a union with null, eliminate it and make a recursive call
           toSqlType(Schema.createUnion(
-            avroSchema.getTypes.filterNot(elm => elm.getType == NULL))).copy(nullable = true)
-        } else avroSchema.getTypes.toSeq match {
-          case Seq(t1, t2) if Set(t2.getType, t1.getType) == Set(INT, LONG) =>
+            avroSchema.getTypes.filterNot(_.getType == NULL))).copy(nullable = true)
+        } else avroSchema.getTypes.map(_.getType) match {
+          case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
-          case Seq(t1, t2) if Set(t2.getType, t1.getType) == Set(FLOAT, DOUBLE) =>
+          case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
           case other =>
             sys.error(s"This mix of union types is not supported (see README): $other")
