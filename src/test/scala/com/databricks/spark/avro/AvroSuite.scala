@@ -91,6 +91,7 @@ class AvroSuite extends FunSuite {
       .select('enum)
       .collect()
     assert(enum(0)(0) == "SPADES")
+    assert(enum(1)(0) == "CLUBS")
 
     val record = TestSQLContext
       .avroFile(testFile)
@@ -104,11 +105,16 @@ class AvroSuite extends FunSuite {
       .select('array_of_boolean)
       .collect()
     assert(array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](0))
+    assert(!array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](1))
+    assert(!array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](2))
+    assert(!array_of_boolean(2)(0).asInstanceOf[Seq[Boolean]](0))
 
     val bytes = TestSQLContext
       .avroFile(testFile)
       .select('bytes)
       .collect()
+    assert(bytes(0)(0).asInstanceOf[Array[Byte]](0) == 65)
+    assert(bytes(0)(0).asInstanceOf[Array[Byte]](1) == 66)
     assert(bytes(2)(0).asInstanceOf[Array[Byte]](0) == 83)
   }
 }

@@ -46,35 +46,41 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     convertedSchema
   }
 
-  // There are several properties of Avro that we have to account for in this method:
-  // 1) Avro uses Utf8 strings, so we want to convert them to java.lang.String for SparkSQL,
-  //    including making the appropriate recursive calls.
-  // 2) Avro map keys are always strings, so we don't need to recurse on them when processing maps.
-  // 3) Byte arrays and ByteBuffers are reused by Avro, so we must copy them out.
-  def convertToSparkSQL(obj: Any): Any = {
+  /** 
+   * There are several properties of Avro that we have to account for in this method:
+   * 1) Avro uses Utf8 strings, so we want to convert them to java.lang.String for SparkSQL,
+   *    including making the appropriate recursive calls.
+   * 2) Avro map keys are always strings, so we don't need to recurse on them when processing maps.
+   * 3) Byte arrays and ByteBuffers are reused by Avro, so we must copy them out. 
+   */
+  private def convertToSparkSQL(obj: Any): Any = {
     obj match {
-      case u: Utf8 => u.toString
-      case m: Map[Any, Any] => m.map(x => (x._1.toString, convertToSparkSQL(x._2)))
-      case a: GenericData.Array[Any] => {
-        val ar = new Array[Any](a.size)
+      case u: Utf8 =>
+        u.toString
+      case m: Map[Any, Any] =>
+        m.map(x => (x._1.toString, convertToSparkSQL(x._2)))
+      case avroArray: GenericData.Array[Any] =>
+        val javaArray = new Array[Any](avroArray.size)
         var idx = 0
-        while (idx < a.size) {
-          ar(idx) = convertToSparkSQL(a(0))
+        while (idx < avroArray.size) {
+          javaArray(idx) = convertToSparkSQL(avroArray(idx))
           idx += 1
         }
-        ar.toSeq
-      }
-      case f: Fixed => f.bytes.clone
-      case e: EnumSymbol => e.toString
-      case r: Record => Row.fromSeq((0 until r.getSchema.getFields.size).map { i =>
-        convertToSparkSQL(r.get(i))
-      })
-      case h: ByteBuffer => {
-        val ar = new Array[Byte](h.remaining)
-        h.get(ar)
-        ar
-      }
-      case other => other
+        javaArray.toSeq
+      case f: Fixed =>
+        f.bytes.clone
+      case e: EnumSymbol =>
+        e.toString
+      case r: Record => 
+        Row.fromSeq((0 until r.getSchema.getFields.size).map { i =>
+          convertToSparkSQL(r.get(i))
+        })
+      case avroBytes: ByteBuffer =>
+        val javaBytes = new Array[Byte](avroBytes.remaining)
+        avroBytes.get(javaBytes)
+        javaBytes
+      case other =>
+        other
     }
   }
 
