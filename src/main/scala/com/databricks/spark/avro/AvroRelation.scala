@@ -15,23 +15,23 @@
  */
 package com.databricks.spark.avro
 
-import java.util.Map
 import java.nio.ByteBuffer
+import java.util.Map
 
-import org.apache.avro.Schema
+import scala.collection.JavaConversions._
+
 import org.apache.avro.file.DataFileReader
-import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
-import org.apache.avro.mapred.FsInput
-import org.apache.avro.util.Utf8
 import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericData.{Fixed, EnumSymbol, Record}
+import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
+import org.apache.avro.mapred.FsInput
+import org.apache.avro.Schema
+import org.apache.avro.util.Utf8
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.sources.TableScan
-
-import scala.collection.JavaConversions._
 
 case class AvroRelation(location: String)(@transient val sqlContext: SQLContext) extends TableScan {
 
@@ -107,7 +107,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
 
     val status = fs.getFileStatus(path)
-    val singleFile = if (status.isDir) {
+    val singleFile = if (status.isDirectory) {
       fs.listStatus(path)
         .find(_.getPath.toString endsWith "avro")
         .map(_.getPath)

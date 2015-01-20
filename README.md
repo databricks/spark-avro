@@ -100,6 +100,8 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
+We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema.
+
 ### Python and SQL API
 Avro data can be queried in pure SQL or from python by registering the data as a temporary table.
 
