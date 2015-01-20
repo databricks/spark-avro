@@ -67,6 +67,14 @@ class AvroSuite extends FunSuite {
     assert(simple_map(0)(0).getClass.toString.contains("Map"))
     assert(simple_map(0)(0).asInstanceOf[Map[String, Some[Int]]].get("abc") == Some[Int](1))
 
+    val union0 = TestSQLContext
+      .avroFile(testFile)
+      .select('union_string_null)
+      .collect()
+    assert(union0(0)(0) == "abc")
+    assert(union0(1)(0) == "123")
+    assert(union0(2)(0) == null)
+
     val union1 = TestSQLContext
       .avroFile(testFile)
       .select('union_int_long_null)

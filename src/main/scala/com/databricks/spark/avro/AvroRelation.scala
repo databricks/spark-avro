@@ -156,11 +156,15 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
           MapType(StringType, schemaType.dataType, valueContainsNull = schemaType.nullable),
           nullable = false)
 
-      case UNION => {
+      case UNION =>
         if (avroSchema.getTypes.exists(_.getType == NULL)) {
           // In case of a union with null, eliminate it and make a recursive call
-          toSqlType(Schema.createUnion(
-            avroSchema.getTypes.filterNot(_.getType == NULL))).copy(nullable = true)
+          val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
+          if (remainingUnionTypes.size == 1) {
+            toSqlType(remainingUnionTypes.get(0)).copy(nullable = true)
+          } else {
+            toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
+          }
         } else avroSchema.getTypes.map(_.getType) match {
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
@@ -169,7 +173,6 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
           case other =>
             sys.error(s"This mix of union types is not supported (see README): $other")
         }
-      }
 
       case other => sys.error(s"Unsupported type $other")
     }
