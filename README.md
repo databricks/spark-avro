@@ -50,6 +50,31 @@ These examples use an avro file available for download [here](https://github.com
 $ wget https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro
 ```
 
+## Supported types
+As of now, every avro type with the exception of complex unions is supported. To be more specific, we use the following mapping from avro types to SparkSQL types:
+
+```
+boolean -> BooleanType
+int -> IntegerType
+long -> LongType
+float -> FloatType
+double -> DoubleType
+bytes -> BinaryType
+string -> StringType
+record -> StructType
+enum -> StringType
+array -> ArrayType
+map -> MapType
+fixed -> BinaryType
+```
+
+As for unions, we only support three kinds of unions:
+1) union(int, long)
+2) union(float, double)
+3) union(something, null), where something is one of the avro types mentioned above, including two types of unions.
+
+At the moment we ignore docs, aliases and other properties present in the avro file.
+
 ### Scala API
 
 You can use the library by loading the implicits from `com.databricks.spark.avro._`.
@@ -75,6 +100,8 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
+We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema.
+
 ### Python and SQL API
 Avro data can be queried in pure SQL or from python by registering the data as a temporary table.
 
@@ -94,5 +121,4 @@ JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
 
 ## Building From Source
-This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root.
-
+This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root. To run the tests, you should run `sbt/sbt test`.
