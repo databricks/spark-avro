@@ -91,6 +91,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
       case FLOAT => SchemaType(FloatType, nullable = false)
+      case LONG => SchemaType(LongType, nullable = false)
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
