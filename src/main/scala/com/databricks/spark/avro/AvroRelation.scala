@@ -107,7 +107,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
 
     val status = fs.getFileStatus(path)
-    val singleFile = if (status.isDirectory) {
+    val singleFile = if (status.isDir) {
       fs.listStatus(path)
         .find(_.getPath.toString endsWith "avro")
         .map(_.getPath)
