@@ -27,4 +27,9 @@ public class AvroUtils {
         AvroRelation relation = new AvroRelation(path, sqlContext.sqlContext());
         return sqlContext.baseRelationToSchemaRDD(relation);
     }
+
+    /** Saves the specified SchemaRDD as avro file in provided directory. */
+    public static void saveAsAvroFile(JavaSchemaRDD javaSchemaRDD, String path) {
+        AvroSaver.save(javaSchemaRDD.schemaRDD(), path);
+    }
 }

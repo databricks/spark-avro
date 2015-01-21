@@ -27,8 +27,10 @@ package object avro {
       sqlContext.baseRelationToSchemaRDD(AvroRelation(filePath)(sqlContext))
   }
 
-  // TODO: Implement me.
+  /**
+   * Adds a method, `saveAsAvroFile`, to SchemaRDD that allows you to save it as avro file.
+   */
   implicit class AvroSchemaRDD(schemaRDD: SchemaRDD) {
-    def saveAsAvroFile(path: String): Unit = ???
+    def saveAsAvroFile(path: String): Unit = AvroSaver.save(schemaRDD, path)
   }
 }

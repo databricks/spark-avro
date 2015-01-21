@@ -22,66 +22,32 @@ import scala.collection.JavaConversions._
 
 import org.apache.avro.file.DataFileReader
 import org.apache.avro.generic.GenericData
-import org.apache.avro.generic.GenericData.{Fixed, EnumSymbol, Record}
+import org.apache.avro.generic.GenericData.{Fixed, Record}
 import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
 import org.apache.avro.mapred.FsInput
 import org.apache.avro.Schema
-import org.apache.avro.util.Utf8
+import org.apache.avro.Schema.Type._
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.sources.TableScan
 
+
 case class AvroRelation(location: String)(@transient val sqlContext: SQLContext) extends TableScan {
+
+  var avroSchema: Schema = null
 
   override val schema = {
     val fileReader = newReader()
-    val convertedSchema = toSqlType(fileReader.getSchema).dataType match {
+    avroSchema = fileReader.getSchema
+    val convertedSchema = SchemaConverters.toSqlType(fileReader.getSchema).dataType match {
       case s: StructType => s
       case other =>
         sys.error(s"Avro files must contain Records to be read, type $other not supported")
     }
     fileReader.close()
     convertedSchema
-  }
-
-  /**
-   * There are several properties of Avro that we have to account for in this method:
-   * 1) Avro uses Utf8 strings, so we want to convert them to java.lang.String for SparkSQL,
-   *    including making the appropriate recursive calls.
-   * 2) Avro map keys are always strings, so we don't need to recurse on them when processing maps.
-   * 3) Byte arrays and ByteBuffers are reused by Avro, so we must copy them out.
-   */
-  private def convertToSparkSQL(obj: Any): Any = {
-    obj match {
-      case u: Utf8 =>
-        u.toString
-      case m: Map[Any, Any] =>
-        m.map(x => (x._1.toString, convertToSparkSQL(x._2)))
-      case avroArray: GenericData.Array[Any] =>
-        val javaArray = new Array[Any](avroArray.size)
-        var idx = 0
-        while (idx < avroArray.size) {
-          javaArray(idx) = convertToSparkSQL(avroArray(idx))
-          idx += 1
-        }
-        javaArray.toSeq
-      case f: Fixed =>
-        f.bytes.clone
-      case e: EnumSymbol =>
-        e.toString
-      case r: Record =>
-        Row.fromSeq((0 until r.getSchema.getFields.size).map { i =>
-          convertToSparkSQL(r.get(i))
-        })
-      case avroBytes: ByteBuffer =>
-        val javaBytes = new Array[Byte](avroBytes.remaining)
-        avroBytes.get(javaBytes)
-        javaBytes
-      case other =>
-        other
-    }
   }
 
   // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
@@ -93,13 +59,8 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
       classOf[org.apache.hadoop.io.NullWritable],
       sqlContext.sparkContext.defaultMinPartitions)
 
-    baseRdd.map { record =>
-      val values = (0 until schema.fields.size).map { i =>
-        convertToSparkSQL(record._1.datum().get(i))
-      }
-
-      Row.fromSeq(values)
-    }
+    val converter = createConverter(avroSchema)
+    baseRdd.map(record => converter(record._1.datum).asInstanceOf[Row])
   }
 
   private def getAllFiles(fs: FileSystem)(path: Path): Stream[Path] = {
@@ -126,56 +87,108 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
     DataFileReader.openReader(input, reader)
   }
 
-  private case class SchemaType(dataType: DataType, nullable: Boolean)
+  /**
+   * This function constructs a converter function that will be used to convert avro types to their
+   * corresponding sparkSQL representations.
+   */
+  private def createConverter(schema: Schema): (Any) => Any = {
+    schema.getType match {
+      case STRING | ENUM =>
+        // Avro strings are in Utf8, so we have to call toString on them
+        (item: Any) => if (item == null) null else item.toString
+      case INT | BOOLEAN | DOUBLE | FLOAT | LONG =>
+        (item: Any) => item
 
-  private def toSqlType(avroSchema: Schema): SchemaType = {
-    import Schema.Type._
-
-    avroSchema.getType match {
-      case INT => SchemaType(IntegerType, nullable = false)
-      case STRING => SchemaType(StringType, nullable = false)
-      case BOOLEAN => SchemaType(BooleanType, nullable = false)
-      case BYTES => SchemaType(BinaryType, nullable = false)
-      case DOUBLE => SchemaType(DoubleType, nullable = false)
-      case FLOAT => SchemaType(FloatType, nullable = false)
-      case LONG => SchemaType(LongType, nullable = false)
-      case FIXED => SchemaType(BinaryType, nullable = false)
-      case ENUM => SchemaType(StringType, nullable = false)
-
-      case RECORD =>
-        val fields = avroSchema.getFields.map { f =>
-          val schemaType = toSqlType(f.schema())
-          StructField(f.name, schemaType.dataType, schemaType.nullable)
+      case BYTES =>
+        (item: Any) => {
+          if (item == null) {
+            null
+          } else {
+            val avroBytes = item.asInstanceOf[ByteBuffer]
+            val javaBytes = new Array[Byte](avroBytes.remaining)
+            avroBytes.get(javaBytes)
+            javaBytes
+          }
         }
 
-        SchemaType(StructType(fields), nullable = false)
+      case FIXED =>
+        // Byte arrays are reused by avro, so we have to make a copy of them.
+        (item: Any) => if (item == null) null else item.asInstanceOf[Fixed].bytes.clone
+
+      case RECORD =>
+        val fieldConverters = schema.getFields.map(f => createConverter(f.schema))
+
+        (item: Any) => {
+          if (item == null) {
+            null
+          } else {
+            val record = item.asInstanceOf[Record]
+            val converted = new Array[Any](fieldConverters.size)
+            var idx = 0
+            while (idx < fieldConverters.size) {
+              converted(idx) = fieldConverters.apply(idx)(record.get(idx))
+              idx += 1
+            }
+
+            Row.fromSeq(converted.toSeq)
+          }
+        }
 
       case ARRAY =>
-        val schemaType = toSqlType(avroSchema.getElementType)
-        SchemaType(
-          ArrayType(schemaType.dataType, containsNull = schemaType.nullable),
-          nullable = false)
+        val elementConverter = createConverter(schema.getElementType)
+
+        (item: Any) => {
+          if (item == null) {
+            null
+          } else {
+            val avroArray = item.asInstanceOf[GenericData.Array[Any]]
+            val convertedArray = new Array[Any](avroArray.size)
+            var idx = 0
+            while (idx < avroArray.size) {
+              convertedArray(idx) = elementConverter(avroArray(idx))
+              idx += 1
+            }
+            convertedArray.toSeq
+          }
+        }
 
       case MAP =>
-        val schemaType = toSqlType(avroSchema.getValueType)
-        SchemaType(
-          MapType(StringType, schemaType.dataType, valueContainsNull = schemaType.nullable),
-          nullable = false)
+        val valueConverter = createConverter(schema.getValueType)
+
+        (item: Any) => {
+          if (item == null) {
+            null
+          } else {
+            // Avro map keys are always strings, so it's enough to just call toString on them.
+            item.asInstanceOf[Map[Any, Any]].map(x => (x._1.toString, valueConverter(x._2)))
+          }
+        }
 
       case UNION =>
-        if (avroSchema.getTypes.exists(_.getType == NULL)) {
-          // In case of a union with null, eliminate it and make a recursive call
-          val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
+        if (schema.getTypes.exists(_.getType == NULL)) {
+          val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.get(0)).copy(nullable = true)
+            createConverter(remainingUnionTypes.get(0))
           } else {
-            toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
+            createConverter(Schema.createUnion(remainingUnionTypes))
           }
-        } else avroSchema.getTypes.map(_.getType) match {
+        } else schema.getTypes.map(_.getType) match {
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
-            SchemaType(LongType, nullable = false)
+            (item: Any) => {
+              item match {
+                case l: Long => l
+                case i: Int => i.toLong
+                case null => null
+              }
+            }
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
-            SchemaType(DoubleType, nullable = false)
+            (item: Any) => {
+              item match {
+                case d: Double => d
+                case f: Float => f.toDouble
+                case null => null
+              }
+            }
           case other =>
             sys.error(s"This mix of union types is not supported (see README): $other")
         }

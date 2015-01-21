@@ -15,8 +15,15 @@
  */
 package com.databricks.spark.avro
 
+import java.sql.Timestamp
+
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashSet
+
+import com.google.common.io.Files
+import org.apache.commons.io.FileUtils
+import org.apache.spark.sql._
 import org.apache.spark.sql.test._
-import org.apache.spark.sql.Row
 import org.scalatest.FunSuite
 
 /* Implicits */
@@ -25,6 +32,7 @@ import TestSQLContext._
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val testToAvroFile = "src/test/resources/testToAvro.avro"
 
   test("dsl test") {
     val results = TestSQLContext
@@ -45,7 +53,7 @@ class AvroSuite extends FunSuite {
 
     assert(sql("SELECT * FROM avroTable").collect().size === 8)
   }
-  
+
   test("support of various data types") {
     // This test uses data from test.avro. You can see the data and the schema of this file in
     // test.json and test.avsc
@@ -58,72 +66,152 @@ class AvroSuite extends FunSuite {
       .avroFile(testFile)
       .select('string)
       .collect()
-    assert(str(1)(0) == "Terran is IMBA!")
+    assert(str.map(x => x(0)).toSet.contains("Terran is IMBA!"))
 
     val simple_map = TestSQLContext
       .avroFile(testFile)
       .select('simple_map)
       .collect()
     assert(simple_map(0)(0).getClass.toString.contains("Map"))
-    assert(simple_map(0)(0).asInstanceOf[Map[String, Some[Int]]].get("abc") == Some[Int](1))
+    assert(simple_map.map(x => x(0).asInstanceOf[Map[String, Some[Int]]].size).toSet == Set(2, 0))
 
     val union0 = TestSQLContext
       .avroFile(testFile)
       .select('union_string_null)
       .collect()
-    assert(union0(0)(0) == "abc")
-    assert(union0(1)(0) == "123")
-    assert(union0(2)(0) == null)
+    assert(union0.map(x => x(0)).toSet == Set("abc", "123", null))
 
     val union1 = TestSQLContext
       .avroFile(testFile)
       .select('union_int_long_null)
       .collect()
-    assert(union1(1)(0) == 66)
-    assert(union1(2)(0) == null)
+    assert(union1.map(x => x(0)).toSet == Set(66, 1, null))
 
     val union2 = TestSQLContext
       .avroFile(testFile)
       .select('union_float_double)
       .collect()
-    assert(Math.abs(union2(0)(0).asInstanceOf[Float] - Math.PI) < 0.001)
+    assert(union2.map(x => new java.lang.Double(x(0).toString)).exists(
+      p => Math.abs(p - Math.PI) < 0.001))
 
     val fixed = TestSQLContext
       .avroFile(testFile)
       .select('fixed3)
       .collect()
-    assert(fixed(0)(0).asInstanceOf[Array[Byte]](1) == 3)
+    assert(fixed.map(x => x(0).asInstanceOf[Array[Byte]]).exists(p => p(1) == 3))
 
     val enum = TestSQLContext
       .avroFile(testFile)
       .select('enum)
       .collect()
-    assert(enum(0)(0) == "SPADES")
-    assert(enum(1)(0) == "CLUBS")
+    assert(enum.map(x => x(0)).toSet == Set("SPADES", "CLUBS", "DIAMONDS"))
 
     val record = TestSQLContext
       .avroFile(testFile)
       .select('record)
       .collect()
     assert(record(0)(0).getClass().toString.contains("Row"))
-    assert(record(2)(0).asInstanceOf[Row](0) == "TEST_STR123")
+    assert(record.map(x => x(0).asInstanceOf[Row](0)).contains("TEST_STR123"))
 
     val array_of_boolean = TestSQLContext
       .avroFile(testFile)
       .select('array_of_boolean)
       .collect()
-    assert(array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](0))
-    assert(!array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](1))
-    assert(!array_of_boolean(0)(0).asInstanceOf[Seq[Boolean]](2))
-    assert(!array_of_boolean(2)(0).asInstanceOf[Seq[Boolean]](0))
+    assert(array_of_boolean.map(x => x(0).asInstanceOf[Seq[Boolean]].size).toSet == Set(3, 1, 0))
 
     val bytes = TestSQLContext
       .avroFile(testFile)
       .select('bytes)
       .collect()
-    assert(bytes(0)(0).asInstanceOf[Array[Byte]](0) == 65)
-    assert(bytes(0)(0).asInstanceOf[Array[Byte]](1) == 66)
-    assert(bytes(2)(0).asInstanceOf[Array[Byte]](0) == 83)
+    assert(bytes.map(x => x(0).asInstanceOf[Array[Byte]].size).toSet == Set(3, 1, 0))
+  }
+
+  test("conversion to avro and back") {
+    def convertToString(elem: Any): String = {
+      elem match {
+        case arrayBuf: ArrayBuffer[Any] => arrayBuf.toArray.deep.mkString(" ")
+        case arrayByte: Array[Byte] => arrayByte.deep.mkString(" ")
+        case other => other.toString
+      }
+    }
+
+    val tempDir = Files.createTempDir()
+    val avroDir = tempDir + "/avro"
+    AvroSaver.save(TestSQLContext.avroFile(testToAvroFile), avroDir)
+
+    val originalEntries = TestSQLContext.avroFile(testToAvroFile).collect()
+    val newEntries = TestSQLContext.avroFile(avroDir).collect()
+
+    assert(originalEntries.size == newEntries.size)
+
+    val origEntrySet = new Array[HashSet[Any]](originalEntries(0).size)
+    for (i <- 0 until originalEntries(0).size) {origEntrySet(i) = new HashSet[Any]()}
+
+    for (origEntry <- originalEntries) {
+      var idx = 0
+      for (origElement <- origEntry) {
+        origEntrySet(idx).+=(convertToString(origElement))
+        idx += 1
+      }
+    }
+
+    for (newEntry <- newEntries) {
+      var idx = 0
+      for (newElement <- newEntry) {
+        assert(origEntrySet(idx).contains(convertToString(newElement)))
+        idx += 1
+      }
+    }
+
+    FileUtils.deleteDirectory(tempDir)
+  }
+
+  test("converting some specific sparkSQL types to avro") {
+    val testSchema = StructType(Seq(StructField("Name", StringType, false),
+                                    StructField("Length", IntegerType, false),
+                                    StructField("Time", TimestampType, false),
+                                    StructField("Decimal", DecimalType(10, 10), false),
+                                    StructField("Binary", BinaryType)))
+
+    val arrayOfByte = new Array[Byte](4)
+    for (i <- 0 until arrayOfByte.size) {
+      arrayOfByte(i) = i.toByte
+    }
+    val cityRDD = sparkContext.parallelize(Seq(
+      Row("San Francisco", 12, new Timestamp(666), 3.14, arrayOfByte),
+      Row("Palo Alto", 8, new Timestamp(777), 3.14, arrayOfByte),
+      Row("Munich", 6, new Timestamp(42), 3.14, arrayOfByte)))
+    val citySchemaRDD = TestSQLContext.applySchema(cityRDD, testSchema)
+
+    val tempDir = Files.createTempDir()
+    val avroDir = tempDir + "/avro"
+    AvroSaver.save(citySchemaRDD, avroDir)
+
+    assert(TestSQLContext.avroFile(avroDir).collect().size == 3)
+
+    // TimesStamps are converted to longs
+    val times = TestSQLContext
+      .avroFile(avroDir)
+      .select('Time)
+      .collect()
+    assert(times.map(x => x(0)).toSet == Set(666, 777, 42))
+
+    // DecimalType should be converted to string
+    val decimals = TestSQLContext
+      .avroFile(avroDir)
+      .select('Decimal)
+      .collect()
+    assert(decimals(1)(0) == "3.14")
+
+    val binary = TestSQLContext
+      .avroFile(avroDir)
+      .select('Binary)
+      .collect()
+    for (i <- 0 until arrayOfByte.size) {
+      assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
+    }
+
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("support of globbed paths") {
