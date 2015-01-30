@@ -1,6 +1,6 @@
 # Spark SQL Avro Library
 
-A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
+A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html) and saving Spark SQL as Avro.
 
 [![Build Status](https://travis-ci.org/databricks/spark-avro.svg?branch=master)](https://travis-ci.org/databricks/spark-avro)
 
@@ -50,7 +50,7 @@ These examples use an avro file available for download [here](https://github.com
 $ wget https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro
 ```
 
-## Supported types
+## Supported types for Avro -> SparkSQL conversion
 As of now, every avro type with the exception of complex unions is supported. To be more specific, we use the following mapping from avro types to SparkSQL types:
 
 ```
@@ -69,15 +69,31 @@ fixed -> BinaryType
 ```
 
 As for unions, we only support three kinds of unions:
+
 1) union(int, long)
+
 2) union(float, double)
+
 3) union(something, null), where something is one of the avro types mentioned above, including two types of unions.
 
 At the moment we ignore docs, aliases and other properties present in the avro file.
 
+## Supported types for SparkSQL -> Avro conversion
+
+Every SparkSQL type is supported. For most of them the corresponding type is obvious (e.g. IntegerType gets converted to int), for the rest the following conversions are used:
+
+```
+ByteType -> int
+ShortType -> int
+DecimalType -> string
+BinaryType -> bytes
+TimestampType -> long
+StructType -> record
+```
+
 ### Scala API
 
-You can use the library by loading the implicits from `com.databricks.spark.avro._`.
+To get SchemaRDD from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
 
 ```
 scala> import org.apache.spark.sql.SQLContext
@@ -100,6 +116,12 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
+To save SchemaRDD as avro you should use the `save()` method in `AvroSaver`. For example:
+
+```
+scala> AvroSaver.save(myRDD, "my/output/dir")
+```
+
 We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema.
 
 ### Python and SQL API
@@ -112,7 +134,7 @@ OPTIONS (path "episodes.avro")
 ```
 
 ### Java API
-Avro files can be read using static functions in AvroUtils.
+Avro files can be read using static functions in AvroUtils. Same goes for saving SchemaRDD as Avro.
 
 ```java
 import com.databricks.spark.avro.AvroUtils;
@@ -121,4 +143,9 @@ JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
 
 ## Building From Source
-This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root. To run the tests, you should run `sbt/sbt test`.
+This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html), which is automatically downloaded by the included shell script.  To build a JAR file simply run `sbt/sbt package` from the project root.
+
+## Testing
+To run the tests, you should run `sbt/sbt test`. In case you are doing improvements that target speed, you can generate a sample avro file and check how long does it take to read that avro file using the following commands:
+`sbt/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"` will create sample avro files in `src/test/resources/avroForBenchmark/`. You can specify the number of records for each file, as well as the overall number of files.
+`sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data inside `src/test/resources/avroForBenchmark/` and tells you how long did the operation take.
