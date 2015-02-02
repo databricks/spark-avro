@@ -1,6 +1,7 @@
 package com.databricks.spark.avro
 
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 import org.apache.spark.sql.test.TestSQLContext
 
@@ -12,21 +13,21 @@ import org.apache.spark.sql.test.TestSQLContext
  */
 object AvroReadBenchmark {
 
-  val benchmarkFilesDir = "src/test/resources/avroForBenchmark/"
-
   def main(args: Array[String]) {
-    if (new File(benchmarkFilesDir).list.isEmpty) {
-      sys.error("First you should generate some files to run a benchmark with (see README)")
+    val benchmarkDirFiles = new File(AvroFileGenerator.outputDir).list
+    if (benchmarkDirFiles == null || benchmarkDirFiles.isEmpty) {
+      sys.error(s"The benchmark directory ($AvroFileGenerator.outputDir) does not exist or " +
+        "is empty. First you should generate some files to run a benchmark with (see README)")
     }
 
     println("\n\n\nStaring benchmark test - creating SchemaRDD from benchmark avro files\n\n\n")
 
-    val startTime = System.currentTimeMillis
+    val startTime = System.nanoTime
     TestSQLContext
-      .avroFile(benchmarkFilesDir)
+      .avroFile(AvroFileGenerator.outputDir)
       .count()
-    val endTime = System.currentTimeMillis
-    val executionTime = (endTime - startTime) / 1000
+    val endTime = System.nanoTime
+    val executionTime = TimeUnit.SECONDS.convert(endTime - startTime, TimeUnit.NANOSECONDS)
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 

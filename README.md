@@ -93,7 +93,7 @@ StructType -> record
 
 ### Scala API
 
-To get SchemaRDD from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
+To get a SchemaRDD from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
 
 ```
 scala> import org.apache.spark.sql.SQLContext
@@ -147,5 +147,5 @@ This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line
 
 ## Testing
 To run the tests, you should run `sbt/sbt test`. In case you are doing improvements that target speed, you can generate a sample avro file and check how long does it take to read that avro file using the following commands:
-`sbt/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"` will create sample avro files in `src/test/resources/avroForBenchmark/`. You can specify the number of records for each file, as well as the overall number of files.
-`sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data inside `src/test/resources/avroForBenchmark/` and tells you how long did the operation take.
+`sbt/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"` will create sample avro files in `target/avroForBenchmark/`. You can specify the number of records for each file, as well as the overall number of files.
+`sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data inside `target/avroForBenchmark/` and tells you how long did the operation take.

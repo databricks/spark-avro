@@ -1,8 +1,8 @@
 package com.databricks.spark.avro
 
 import java.io.File
+import java.util.ArrayList
 import java.util.HashMap
-import java.util.Vector
 import java.nio.ByteBuffer
 
 import scala.util.Random
@@ -10,6 +10,7 @@ import scala.util.Random
 import org.apache.avro._
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic._
+import org.apache.commons.io.FileUtils
 
 /**
  * This object allows you to generate large avro files that can be used for speed benchmarking.
@@ -19,7 +20,7 @@ object AvroFileGenerator {
   
   val defaultNumberOfRecords = 1000000
   val defaultNumberOfFiles = 1
-  val outputDir = "src/test/resources/avroForBenchmark/"
+  val outputDir = "target/avroForBenchmark/"
   val schemaPath = "src/test/resources/benchmarkSchema.avsc"
   val objectSize = 100 // Maps, arrays and strings in our generated file have this size
 
@@ -31,8 +32,8 @@ object AvroFileGenerator {
     jMap
   }
   
-  def generateRandomArray(rand: Random): Vector[Boolean] = {
-    val vec = new Vector[Boolean]()
+  def generateRandomArray(rand: Random): ArrayList[Boolean] = {
+    val vec = new ArrayList[Boolean]()
     for (i <- 0 until objectSize) {
       vec.add(rand.nextBoolean)
     }
@@ -88,9 +89,18 @@ object AvroFileGenerator {
       numberOfFiles = args(1).toInt
     }
 
-    new File(outputDir).mkdir() // Create directory for output files
+    println(s"Generating $numberOfFiles avro files with $numberOfRecords records each")
+
+    val existingOutputFiles = new File(outputDir).listFiles()
+    if (existingOutputFiles != null) {
+      existingOutputFiles.filter(_.isFile).foreach(_.delete())
+    }
+    new File(outputDir).mkdirs() // Create directory for output files
+
     for (fileIdx <- 0 until numberOfFiles) {
       generateAvroFile(numberOfRecords, fileIdx)
     }
+
+    println("Generation finished")
   }
 }
