@@ -125,4 +125,16 @@ class AvroSuite extends FunSuite {
     assert(bytes(0)(0).asInstanceOf[Array[Byte]](1) == 66)
     assert(bytes(2)(0).asInstanceOf[Array[Byte]](0) == 83)
   }
+
+  test("support of globbed paths") {
+    val e1 = TestSQLContext
+      .avroFile("*/test/resources/episodes.avro")
+      .collect()
+    assert(e1.size == 8)
+
+    val e2 = TestSQLContext
+      .avroFile("src/*/*/episodes.avro")
+      .collect()
+    assert(e2.size == 8)
+  }
 }
