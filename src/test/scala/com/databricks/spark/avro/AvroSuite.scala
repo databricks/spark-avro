@@ -15,6 +15,7 @@
  */
 package com.databricks.spark.avro
 
+import java.io.FileNotFoundException
 import java.sql.Timestamp
 
 import scala.collection.mutable.ArrayBuffer
@@ -224,5 +225,17 @@ class AvroSuite extends FunSuite {
       .avroFile("src/*/*/episodes.avro")
       .collect()
     assert(e2.size == 8)
+  }
+
+  test("reading from invalid path throws exception") {
+    intercept[FileNotFoundException] {
+      TestSQLContext.avroFile("very/invalid/path/123.avro")
+    }
+
+    // In case of globbed path that can't be matched to anything, another exception is thrown (and
+    // exception message is helpful)
+    intercept[RuntimeException] {
+      TestSQLContext.avroFile("*/*/*/*/*/*/*/something.avro")
+    }
   }
 }

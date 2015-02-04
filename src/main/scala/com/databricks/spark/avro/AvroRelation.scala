@@ -15,6 +15,7 @@
  */
 package com.databricks.spark.avro
 
+import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 import java.util.Map
 
@@ -74,7 +75,13 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
   private def newReader() = {
     val path = new Path(location)
     val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
-    val statuses = fs.globStatus(path)
+    val globStatus = fs.globStatus(path)
+
+    if (globStatus == null) {
+      throw new FileNotFoundException(s"The path you've provided ($location) is invalid.")
+    }
+
+    val statuses = globStatus
       .toStream
       .map(_.getPath)
       .flatMap(getAllFiles(fs)(_))
