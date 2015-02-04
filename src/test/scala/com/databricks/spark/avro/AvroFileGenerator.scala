@@ -10,7 +10,6 @@ import scala.util.Random
 import org.apache.avro._
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic._
-import org.apache.commons.io.FileUtils
 
 /**
  * This object allows you to generate large avro files that can be used for speed benchmarking.
@@ -24,30 +23,38 @@ object AvroFileGenerator {
   val schemaPath = "src/test/resources/benchmarkSchema.avsc"
   val objectSize = 100 // Maps, arrays and strings in our generated file have this size
 
-  def generateRandomMap(rand: Random): java.util.Map[String, Int] = {
+  /**
+   * This function generates a random map(string, int) of a given size. It is also begin used by
+   * AvroWriteBenchmark.
+   */
+  private[avro] def generateRandomMap(rand: Random, size: Int): java.util.Map[String, Int] = {
     val jMap = new HashMap[String, Int]()
-    for (i <- 0 until objectSize) {
+    for (i <- 0 until size) {
       jMap.put(rand.nextString(5), i)
     }
     jMap
   }
-  
-  def generateRandomArray(rand: Random): ArrayList[Boolean] = {
+
+  /**
+   * This function generates a random array of booleans of a given size. It is also begin used by
+   * AvroWriteBenchmark.
+   */
+  private[avro] def generateRandomArray(rand: Random, size: Int): ArrayList[Boolean] = {
     val vec = new ArrayList[Boolean]()
-    for (i <- 0 until objectSize) {
+    for (i <- 0 until size) {
       vec.add(rand.nextBoolean)
     }
     vec
   }
-  
-  def generateRandomByteBuffer(rand: Random): ByteBuffer = {
+
+  private[avro] def generateRandomByteBuffer(rand: Random): ByteBuffer = {
     val bb = ByteBuffer.allocate(objectSize)
     val arrayOfBytes = new Array[Byte](objectSize)
     rand.nextBytes(arrayOfBytes)
     bb.put(arrayOfBytes)
   }
 
-  def generateAvroFile(numberOfRecords: Int, fileIdx: Int) = {
+  private[avro] def generateAvroFile(numberOfRecords: Int, fileIdx: Int) = {
     val schema = new Schema.Parser().parse(new File(schemaPath))
     val outputFile = new File(outputDir + "part" + fileIdx + ".avro")
     val datumWriter = new GenericDatumWriter[GenericRecord](schema)
@@ -63,11 +70,11 @@ object AvroFileGenerator {
     var idx = 0
     while (idx < numberOfRecords) {
       avroRec.put("string", rand.nextString(objectSize))
-      avroRec.put("simple_map", generateRandomMap(rand))
+      avroRec.put("simple_map", generateRandomMap(rand, objectSize))
       avroRec.put("union_int_long_null", rand.nextInt)
       avroRec.put("union_float_double", rand.nextDouble)
       avroRec.put("inner_record", innerRec)
-      avroRec.put("array_of_boolean", generateRandomArray(rand))
+      avroRec.put("array_of_boolean", generateRandomArray(rand, objectSize))
       avroRec.put("bytes", generateRandomByteBuffer(rand))
 
       dataFileWriter.append(avroRec)
@@ -91,10 +98,7 @@ object AvroFileGenerator {
 
     println(s"Generating $numberOfFiles avro files with $numberOfRecords records each")
 
-    val existingOutputFiles = new File(outputDir).listFiles()
-    if (existingOutputFiles != null) {
-      existingOutputFiles.filter(_.isFile).foreach(_.delete())
-    }
+    DirectoryDeletion.recursiveDelete(new File(outputDir))
     new File(outputDir).mkdirs() // Create directory for output files
 
     for (fileIdx <- 0 until numberOfFiles) {

@@ -16,19 +16,28 @@
 package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
+import java.io.File
 import java.sql.Timestamp
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
 
 import com.google.common.io.Files
-import org.apache.commons.io.FileUtils
 import org.apache.spark.sql._
 import org.apache.spark.sql.test._
 import org.scalatest.FunSuite
 
 /* Implicits */
 import TestSQLContext._
+
+private[avro] object DirectoryDeletion {
+  private[avro] def recursiveDelete(path: File): Unit = {
+    if (path.isDirectory) {
+      path.listFiles.foreach(recursiveDelete(_))
+    }
+    path.delete
+  }
+}
 
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -167,7 +176,7 @@ class AvroSuite extends FunSuite {
       }
     }
 
-    FileUtils.deleteDirectory(tempDir)
+    DirectoryDeletion.recursiveDelete(tempDir)
   }
 
   test("converting some specific sparkSQL types to avro") {
@@ -222,7 +231,7 @@ class AvroSuite extends FunSuite {
       assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
     }
 
-    FileUtils.deleteDirectory(tempDir)
+    DirectoryDeletion.recursiveDelete(tempDir)
   }
 
   test("support of globbed paths") {
