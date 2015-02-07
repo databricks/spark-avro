@@ -1,8 +1,6 @@
 package com.databricks.spark.avro
 
 import java.io.File
-import java.util.ArrayList
-import java.util.HashMap
 import java.nio.ByteBuffer
 
 import scala.util.Random
@@ -22,30 +20,6 @@ object AvroFileGenerator {
   val outputDir = "target/avroForBenchmark/"
   val schemaPath = "src/test/resources/benchmarkSchema.avsc"
   val objectSize = 100 // Maps, arrays and strings in our generated file have this size
-
-  /**
-   * This function generates a random map(string, int) of a given size. It is also begin used by
-   * AvroWriteBenchmark.
-   */
-  private[avro] def generateRandomMap(rand: Random, size: Int): java.util.Map[String, Int] = {
-    val jMap = new HashMap[String, Int]()
-    for (i <- 0 until size) {
-      jMap.put(rand.nextString(5), i)
-    }
-    jMap
-  }
-
-  /**
-   * This function generates a random array of booleans of a given size. It is also begin used by
-   * AvroWriteBenchmark.
-   */
-  private[avro] def generateRandomArray(rand: Random, size: Int): ArrayList[Boolean] = {
-    val vec = new ArrayList[Boolean]()
-    for (i <- 0 until size) {
-      vec.add(rand.nextBoolean)
-    }
-    vec
-  }
 
   private[avro] def generateRandomByteBuffer(rand: Random): ByteBuffer = {
     val bb = ByteBuffer.allocate(objectSize)
@@ -70,11 +44,11 @@ object AvroFileGenerator {
     var idx = 0
     while (idx < numberOfRecords) {
       avroRec.put("string", rand.nextString(objectSize))
-      avroRec.put("simple_map", generateRandomMap(rand, objectSize))
+      avroRec.put("simple_map", TestUtils.generateRandomMap(rand, objectSize))
       avroRec.put("union_int_long_null", rand.nextInt)
       avroRec.put("union_float_double", rand.nextDouble)
       avroRec.put("inner_record", innerRec)
-      avroRec.put("array_of_boolean", generateRandomArray(rand, objectSize))
+      avroRec.put("array_of_boolean", TestUtils.generateRandomArray(rand, objectSize))
       avroRec.put("bytes", generateRandomByteBuffer(rand))
 
       dataFileWriter.append(avroRec)
@@ -98,7 +72,7 @@ object AvroFileGenerator {
 
     println(s"Generating $numberOfFiles avro files with $numberOfRecords records each")
 
-    DirectoryDeletion.recursiveDelete(new File(outputDir))
+    TestUtils.deleteRecursively(new File(outputDir))
     new File(outputDir).mkdirs() // Create directory for output files
 
     for (fileIdx <- 0 until numberOfFiles) {

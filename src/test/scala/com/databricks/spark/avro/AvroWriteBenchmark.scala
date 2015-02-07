@@ -37,8 +37,8 @@ object AvroWriteBenchmark {
 
     for (i <- 0 until numberOfRows) {
       rows(i) = Row(rand.nextString(defaultSize), rand.nextInt, rand.nextDouble, rand.nextDouble,
-        AvroFileGenerator.generateRandomArray(rand, defaultSize).toSeq,
-        AvroFileGenerator.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt))
+        TestUtils.generateRandomArray(rand, defaultSize).toSeq,
+        TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt))
     }
 
     sparkContext.parallelize(rows)
@@ -67,7 +67,7 @@ object AvroWriteBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    DirectoryDeletion.recursiveDelete(tempDir)
+    TestUtils.deleteRecursively(tempDir)
     TestSQLContext.sparkContext.stop // Otherwise scary exception message appears
   }
 }
