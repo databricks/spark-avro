@@ -9,7 +9,6 @@ import com.google.common.io.Files
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.test.TestSQLContext
-import org.apache.spark.sql.test.TestSQLContext._
 
 
 /**
@@ -19,7 +18,7 @@ import org.apache.spark.sql.test.TestSQLContext._
  */
 object AvroWriteBenchmark {
 
-  val defaultNumberOfRows = 50000
+  val defaultNumberOfRows = 1000000
   val defaultSize = 100 // Size used for items in generated RDD like strings, arrays and maps
 
   val testSchema = StructType(Seq(
@@ -31,17 +30,15 @@ object AvroWriteBenchmark {
     StructField("MapField", MapType(StringType, IntegerType), true),
     StructField("StructField", StructType(Seq(StructField("id", IntegerType, true))), false)))
 
-  private[avro] def createLargeRDD(numberOfRows: Int): RDD[Row] = {
-    val rows = new Array[Row](numberOfRows)
+  private def generateRandomRow(): Row = {
     val rand = new Random()
+    Row(rand.nextString(defaultSize), rand.nextInt, rand.nextDouble, rand.nextDouble,
+      TestUtils.generateRandomArray(rand, defaultSize).toSeq,
+      TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt))
+  }
 
-    for (i <- 0 until numberOfRows) {
-      rows(i) = Row(rand.nextString(defaultSize), rand.nextInt, rand.nextDouble, rand.nextDouble,
-        TestUtils.generateRandomArray(rand, defaultSize).toSeq,
-        TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt))
-    }
-
-    sparkContext.parallelize(rows)
+  private def createLargeRDD(numberOfRows: Int): RDD[Row] = {
+    TestSQLContext.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow())
   }
 
   def main(args: Array[String]) {
