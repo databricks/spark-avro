@@ -167,7 +167,7 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
             null
           } else {
             // Avro map keys are always strings, so it's enough to just call toString on them.
-            item.asInstanceOf[Map[Any, Any]].map(x => (x._1.toString, valueConverter(x._2)))
+            item.asInstanceOf[Map[Any, Any]].map(x => (x._1.toString, valueConverter(x._2))).toMap
           }
         }
 

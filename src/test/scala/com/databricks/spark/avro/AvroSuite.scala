@@ -16,19 +16,93 @@
 package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
+import java.io.File
+import java.io.IOException
 import java.sql.Timestamp
+import java.util.{ArrayList, HashMap}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
 
 import com.google.common.io.Files
-import org.apache.commons.io.FileUtils
 import org.apache.spark.sql._
 import org.apache.spark.sql.test._
 import org.scalatest.FunSuite
 
+import scala.util.Random
+
 /* Implicits */
 import TestSQLContext._
+
+private[avro] object TestUtils {
+
+  /**
+   * This function deletes a file or a directory with everything that's in it. This function is
+   * copied from Spark with minor modifications made to it. See original source at:
+   * github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/Utils.scala
+   */
+  def deleteRecursively(file: File) {
+    def listFilesSafely(file: File): Seq[File] = {
+      if (file.exists()) {
+        val files = file.listFiles()
+        if (files == null) {
+          throw new IOException("Failed to list files for dir: " + file)
+        }
+        files
+      } else {
+        List()
+      }
+    }
+
+    if (file != null) {
+      try {
+        if (file.isDirectory) {
+          var savedIOException: IOException = null
+          for (child <- listFilesSafely(file)) {
+            try {
+              deleteRecursively(child)
+            } catch {
+              // In case of multiple exceptions, only last one will be thrown
+              case ioe: IOException => savedIOException = ioe
+            }
+          }
+          if (savedIOException != null) {
+            throw savedIOException
+          }
+        }
+      } finally {
+        if (!file.delete()) {
+          // Delete can also fail if the file simply did not exist
+          if (file.exists()) {
+            throw new IOException("Failed to delete: " + file.getAbsolutePath)
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * This function generates a random map(string, int) of a given size.
+   */
+  private[avro] def generateRandomMap(rand: Random, size: Int): java.util.Map[String, Int] = {
+    val jMap = new HashMap[String, Int]()
+    for (i <- 0 until size) {
+      jMap.put(rand.nextString(5), i)
+    }
+    jMap
+  }
+
+  /**
+   * This function generates a random array of booleans of a given size.
+   */
+  private[avro] def generateRandomArray(rand: Random, size: Int): ArrayList[Boolean] = {
+    val vec = new ArrayList[Boolean]()
+    for (i <- 0 until size) {
+      vec.add(rand.nextBoolean)
+    }
+    vec
+  }
+}
 
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -167,7 +241,7 @@ class AvroSuite extends FunSuite {
       }
     }
 
-    FileUtils.deleteDirectory(tempDir)
+    TestUtils.deleteRecursively(tempDir)
   }
 
   test("converting some specific sparkSQL types to avro") {
@@ -222,7 +296,7 @@ class AvroSuite extends FunSuite {
       assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
     }
 
-    FileUtils.deleteDirectory(tempDir)
+    TestUtils.deleteRecursively(tempDir)
   }
 
   test("support of globbed paths") {
