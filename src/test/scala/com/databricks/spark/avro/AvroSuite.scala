@@ -107,6 +107,9 @@ private[avro] object TestUtils {
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  // A collection of random generated paritioned files from test.avro's schema
+  //   11 partitions in total, 3 records per parititon, and the size of records vary.
+  val testRandomPartitionedFiles = "src/test/resources/test-random-partitioned"
 
   test("dsl test") {
     val results = TestSQLContext
@@ -322,4 +325,44 @@ class AvroSuite extends FunSuite {
       TestSQLContext.avroFile("*/*/*/*/*/*/*/something.avro")
     }
   }
+
+  test("reading with different partitions number choices") {
+    val defaultMinPartitions = TestSQLContext.sparkContext.defaultMinPartitions
+
+    // Read a single file, and use the default partititons number
+    val e1 = TestSQLContext
+      .avroFile(testFile)
+    assert(e1.partitions.size == defaultMinPartitions)
+
+    // Read a single file, and set the partitions number larger than file number
+    val e2 = TestSQLContext
+      .avroFile(testFile, 12)
+    assert(e2.partitions.size == 12)
+
+    // Read a single file, provide a invalid partitons number (negative one)
+    val e3 = TestSQLContext
+      .avroFile(testFile, -9)
+    assert(e3.partitions.size == defaultMinPartitions)
+
+    // Read muitple files, and use the default parititons number
+    val e4 = TestSQLContext
+      .avroFile(testRandomPartitionedFiles)
+    assert(e4.partitions.size == 11)
+
+    // Read multiple files, and set the partitions number smaller than file number
+    val e5 = TestSQLContext
+      .avroFile(testRandomPartitionedFiles, 1)
+    assert(e5.partitions.size == 11)
+
+    // Read multiple files, and set the partitions number larger than file number
+    // But there is no guarantee what is the exact number of parititons because when record size
+    // varies. We only know it should be approximately larger than the specificed number.
+    val e6 = TestSQLContext
+      .avroFile(testRandomPartitionedFiles, 22)
+    assert(e6.partitions.size >= 22)
+
+    val e7 = TestSQLContext
+      .avroFile(testRandomPartitionedFiles, 110)
+    assert(e7.partitions.size >= 110)
+  } 
 }

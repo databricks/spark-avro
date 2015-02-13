@@ -35,8 +35,8 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.sources.TableScan
 
 
-case class AvroRelation(location: String)(@transient val sqlContext: SQLContext) extends TableScan {
-
+case class AvroRelation(location: String, minPartitions: Int = 0)
+    (@transient val sqlContext: SQLContext) extends TableScan {
   var avroSchema: Schema = null
 
   override val schema = {
@@ -53,12 +53,18 @@ case class AvroRelation(location: String)(@transient val sqlContext: SQLContext)
 
   // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
   override lazy val buildScan = {
+    val minPartitionsNum = if (minPartitions <= 0) {
+      sqlContext.sparkContext.defaultMinPartitions
+    } else {
+      minPartitions
+    }
+
     val baseRdd = sqlContext.sparkContext.hadoopFile(
       location,
       classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
       classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
       classOf[org.apache.hadoop.io.NullWritable],
-      sqlContext.sparkContext.defaultMinPartitions)
+      minPartitionsNum)
 
     val converter = createConverter(avroSchema)
     baseRdd.map(record => converter(record._1.datum).asInstanceOf[Row])
