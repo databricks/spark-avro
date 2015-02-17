@@ -23,8 +23,8 @@ package object avro {
    * Adds a method, `avroFile`, to SQLContext that allows reading data stored in Avro.
    */
   implicit class AvroContext(sqlContext: SQLContext) {
-    def avroFile(filePath: String) =
-      sqlContext.baseRelationToSchemaRDD(AvroRelation(filePath)(sqlContext))
+    def avroFile(filePath: String, minPartitions: Int = 0) =
+      sqlContext.baseRelationToSchemaRDD(AvroRelation(filePath, minPartitions)(sqlContext))
   }
 
   /**
