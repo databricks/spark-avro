@@ -18,9 +18,12 @@ package com.databricks.spark.avro
 import java.sql.Timestamp
 import java.util.HashMap
 
+import org.apache.hadoop.conf.Configuration
+
 import scala.collection.immutable.Map
 
 import org.apache.spark.sql._
+import org.apache.spark.sql.types._
 import org.apache.spark.SparkContext._
 
 import org.apache.avro.generic.GenericData.Record
@@ -33,7 +36,7 @@ import org.apache.hadoop.mapred.JobConf
 
 
 /** 
- * This object provides a save() method that is used to save SchemaRDD as avro file.
+ * This object provides a save() method that is used to save DataFrame as avro file.
  * To do this, we first convert the schema and then convert each row of the RDD to corresponding
  * avro types. One remark worth mentioning is the structName parameter that functions have. Avro
  * records have a name associated with them, which must be unique. Since SturctType in sparkSQL
@@ -44,13 +47,13 @@ import org.apache.hadoop.mapred.JobConf
  */
 object AvroSaver {
 
-  def save(schemaRDD: SchemaRDD, location: String): Unit = {
-    val jobConf = new JobConf(schemaRDD.sparkContext.hadoopConfiguration)
+  def save(dataFrame: DataFrame, location: String): Unit = {
+    val jobConf = new JobConf(new Configuration) // HACK: dataFrame.sparkContext.hadoopConfiguration)
     val builder = SchemaBuilder.record("topLevelRecord")
-    val schema = SchemaConverters.convertStructToAvro(schemaRDD.schema, builder)
+    val schema = SchemaConverters.convertStructToAvro(dataFrame.schema, builder)
     AvroJob.setOutputSchema(jobConf, schema)
 
-    schemaRDD.mapPartitions(rowsToAvro(_, schemaRDD.schema)).saveAsHadoopFile(location,
+    dataFrame.mapPartitions(rowsToAvro(_, dataFrame.schema)).saveAsHadoopFile(location,
       classOf[AvroWrapper[GenericRecord]],
       classOf[NullWritable],
       classOf[AvroOutputFormat[GenericRecord]],
@@ -67,7 +70,7 @@ object AvroSaver {
 
   /**
    * This function constructs converter function for a given sparkSQL datatype. These functions
-   * will be used to convert schemaRDD to avro format.
+   * will be used to convert dataFrame to avro format.
    */
   def createConverter(dataType: DataType, structName: String): (Any) => Any = {
     dataType match {
@@ -133,7 +136,7 @@ object AvroSaver {
             val record = new Record(schema)
             val convertersIterator = fieldConverters.iterator
             val fieldNamesIterator = dataType.asInstanceOf[StructType].fieldNames.iterator
-            val rowIterator = item.asInstanceOf[Row].iterator
+            val rowIterator = item.asInstanceOf[Row].toSeq.iterator
 
             while (convertersIterator.hasNext) {
               val converter = convertersIterator.next

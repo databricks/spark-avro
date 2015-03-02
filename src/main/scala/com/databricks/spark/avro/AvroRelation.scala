@@ -32,6 +32,7 @@ import org.apache.avro.Schema.Type._
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.sql._
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.sources.TableScan
 
 

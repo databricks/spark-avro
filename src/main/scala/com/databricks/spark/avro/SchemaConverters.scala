@@ -19,10 +19,9 @@ import scala.collection.JavaConversions._
 
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
-import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.types.{MapType, ArrayType}
-import org.apache.avro.Schema.Type._
 
+import org.apache.spark.sql.types._
+import org.apache.avro.Schema.Type._
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
