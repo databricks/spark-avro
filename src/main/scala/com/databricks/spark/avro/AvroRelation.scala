@@ -15,7 +15,7 @@
  */
 package com.databricks.spark.avro
 
-import java.io.FileNotFoundException
+import java.io.{IOException, FileNotFoundException}
 import java.nio.ByteBuffer
 import java.util.Map
 
@@ -31,25 +31,32 @@ import org.apache.avro.Schema.Type._
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-import org.apache.spark.sql._
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.sources.TableScan
+import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
 
 
-case class AvroRelation(location: String, minPartitions: Int = 0)
-    (@transient val sqlContext: SQLContext) extends TableScan {
+case class AvroRelation(
+    location: String,
+    userSpecifiedSchema: Option[StructType],
+    minPartitions: Int = 0) (@transient val sqlContext: SQLContext)
+    extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
   override val schema = {
-    val fileReader = newReader()
-    avroSchema = fileReader.getSchema
-    val convertedSchema = SchemaConverters.toSqlType(fileReader.getSchema).dataType match {
-      case s: StructType => s
-      case other =>
-        sys.error(s"Avro files must contain Records to be read, type $other not supported")
+    if (userSpecifiedSchema != None) {
+      userSpecifiedSchema.get
+    } else {
+      val fileReader = newReader()
+      avroSchema = fileReader.getSchema
+      val convertedSchema = SchemaConverters.toSqlType(fileReader.getSchema).dataType match {
+        case s: StructType => s
+        case other =>
+          sys.error(s"Avro files must contain Records to be read, type $other not supported")
+      }
+      fileReader.close()
+      convertedSchema
     }
-    fileReader.close()
-    convertedSchema
   }
 
   // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
@@ -208,6 +215,29 @@ case class AvroRelation(location: String, minPartitions: Int = 0)
         }
 
       case other => sys.error(s"Unsupported type $other")
+    }
+  }
+
+  // The function below was borrowed from JSONRelation
+  override def insert(data: DataFrame, overwrite: Boolean) = {
+    val filesystemPath = new Path(location)
+    val fs = filesystemPath.getFileSystem(sqlContext.sparkContext.hadoopConfiguration)
+
+    if (overwrite) {
+      try {
+        fs.delete(filesystemPath, true)
+      } catch {
+        case e: IOException =>
+          throw new IOException(
+            s"Unable to clear output directory ${filesystemPath.toString} prior"
+              + s" to INSERT OVERWRITE a AVRO table:\n${e.toString}")
+      }
+      // Write the data.
+      data.saveAsAvroFile(location)
+      // Right now, we assume that the schema is not changed. We will not update the schema.
+      // schema = data.schema
+    } else {
+      sys.error("AVRO tables only support INSERT OVERWRITE for now.")
     }
   }
 }

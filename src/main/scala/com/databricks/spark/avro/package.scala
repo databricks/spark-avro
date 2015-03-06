@@ -24,7 +24,7 @@ package object avro {
    */
   implicit class AvroContext(sqlContext: SQLContext) {
     def avroFile(filePath: String, minPartitions: Int = 0) =
-      sqlContext.baseRelationToDataFrame(AvroRelation(filePath, minPartitions)(sqlContext))
+      sqlContext.baseRelationToDataFrame(AvroRelation(filePath, None, minPartitions)(sqlContext))
   }
 
   /**

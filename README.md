@@ -6,7 +6,7 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 
 ## Requirements
 
-This library requires Spark 1.2+
+This library requires Spark 1.3+
 
 ## Linking
 You can link against this library in your program at the following coordiates:
@@ -139,7 +139,7 @@ Avro files can be read using static functions in AvroUtils. Same goes for saving
 ```java
 import com.databricks.spark.avro.AvroUtils;
 
-JavaDataFrame episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
+DataFrame episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
 
 ## Building From Source

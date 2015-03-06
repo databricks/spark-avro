@@ -1,12 +1,12 @@
 name := "spark-avro"
 
-version := "0.2-SNAPSHOT"
+version := "0.2.1-rc2"
 
 organization := "com.databricks"
 
 scalaVersion := "2.10.4"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.3.0-SNAPSHOT" % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.3.0-rc2" % "provided"
 
 libraryDependencies += "org.apache.avro" % "avro" % "1.7.7" exclude("org.mortbay.jetty", "servlet-api")
 
@@ -47,3 +47,5 @@ pomExtra := (
 // libraryDependencies += "com.novocode" % "junit-interface" % "0.9" % "test"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+
+resolvers += "Spark Snapshot Repository" at "https://repository.apache.org/content/repositories/orgapachespark-1075/"

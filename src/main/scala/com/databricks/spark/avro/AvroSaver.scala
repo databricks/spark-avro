@@ -18,13 +18,10 @@ package com.databricks.spark.avro
 import java.sql.Timestamp
 import java.util.HashMap
 
-import org.apache.hadoop.conf.Configuration
-
 import scala.collection.immutable.Map
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import org.apache.spark.SparkContext._
 
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
@@ -48,12 +45,13 @@ import org.apache.hadoop.mapred.JobConf
 object AvroSaver {
 
   def save(dataFrame: DataFrame, location: String): Unit = {
-    val jobConf = new JobConf(new Configuration) // HACK: dataFrame.sparkContext.hadoopConfiguration)
+    val jobConf = new JobConf(dataFrame.sqlContext.sparkContext.hadoopConfiguration)
     val builder = SchemaBuilder.record("topLevelRecord")
-    val schema = SchemaConverters.convertStructToAvro(dataFrame.schema, builder)
-    AvroJob.setOutputSchema(jobConf, schema)
+    val schema = dataFrame.schema
+    val avroSchema = SchemaConverters.convertStructToAvro(schema, builder)
+    AvroJob.setOutputSchema(jobConf, avroSchema)
 
-    dataFrame.mapPartitions(rowsToAvro(_, dataFrame.schema)).saveAsHadoopFile(location,
+    dataFrame.mapPartitions(rowsToAvro(_, schema)).saveAsHadoopFile(location,
       classOf[AvroWrapper[GenericRecord]],
       classOf[NullWritable],
       classOf[AvroOutputFormat[GenericRecord]],

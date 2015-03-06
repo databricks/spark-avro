@@ -25,8 +25,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
 
 import com.google.common.io.Files
-import org.apache.spark.sql._
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.test._
+import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 import scala.util.Random
@@ -114,7 +115,7 @@ class AvroSuite extends FunSuite {
   test("dsl test") {
     val results = TestSQLContext
       .avroFile(episodesFile)
-      .select('title)
+      .select("title")
       .collect()
 
     assert(results.size === 8)
@@ -141,64 +142,64 @@ class AvroSuite extends FunSuite {
 
     val str = TestSQLContext
       .avroFile(testFile)
-      .select('string)
+      .select("string")
       .collect()
     assert(str.map(_(0)).toSet.contains("Terran is IMBA!"))
 
     val simple_map = TestSQLContext
       .avroFile(testFile)
-      .select('simple_map)
+      .select("simple_map")
       .collect()
     assert(simple_map(0)(0).getClass.toString.contains("Map"))
     assert(simple_map.map(_(0).asInstanceOf[Map[String, Some[Int]]].size).toSet == Set(2, 0))
 
     val union0 = TestSQLContext
       .avroFile(testFile)
-      .select('union_string_null)
+      .select("union_string_null")
       .collect()
     assert(union0.map(_(0)).toSet == Set("abc", "123", null))
 
     val union1 = TestSQLContext
       .avroFile(testFile)
-      .select('union_int_long_null)
+      .select("union_int_long_null")
       .collect()
     assert(union1.map(_(0)).toSet == Set(66, 1, null))
 
     val union2 = TestSQLContext
       .avroFile(testFile)
-      .select('union_float_double)
+      .select("union_float_double")
       .collect()
     assert(union2.map(x => new java.lang.Double(x(0).toString)).exists(
       p => Math.abs(p - Math.PI) < 0.001))
 
     val fixed = TestSQLContext
       .avroFile(testFile)
-      .select('fixed3)
+      .select("fixed3")
       .collect()
     assert(fixed.map(_(0).asInstanceOf[Array[Byte]]).exists(p => p(1) == 3))
 
     val enum = TestSQLContext
       .avroFile(testFile)
-      .select('enum)
+      .select("enum")
       .collect()
     assert(enum.map(_(0)).toSet == Set("SPADES", "CLUBS", "DIAMONDS"))
 
     val record = TestSQLContext
       .avroFile(testFile)
-      .select('record)
+      .select("record")
       .collect()
     assert(record(0)(0).getClass().toString.contains("Row"))
     assert(record.map(_(0).asInstanceOf[Row](0)).contains("TEST_STR123"))
 
     val array_of_boolean = TestSQLContext
       .avroFile(testFile)
-      .select('array_of_boolean)
+      .select("array_of_boolean")
       .collect()
     assert(array_of_boolean.map(_(0).asInstanceOf[Seq[Boolean]].size).toSet == Set(3, 1, 0))
 
     val bytes = TestSQLContext
       .avroFile(testFile)
-      .select('bytes)
+      .select("bytes")
       .collect()
     assert(bytes.map(_(0).asInstanceOf[Array[Byte]].size).toSet == Set(3, 1, 0))
   }
@@ -230,7 +231,7 @@ class AvroSuite extends FunSuite {
 
     for (origEntry <- originalEntries) {
       var idx = 0
-      for (origElement <- origEntry) {
+      for (origElement <- origEntry.toSeq) {
         origEntrySet(idx) += convertToString(origElement)
         idx += 1
       }
@@ -238,7 +239,7 @@ class AvroSuite extends FunSuite {
 
     for (newEntry <- newEntries) {
       var idx = 0
-      for (newElement <- newEntry) {
+      for (newElement <- newEntry.toSeq) {
         assert(origEntrySet(idx).contains(convertToString(newElement)))
         idx += 1
       }
@@ -248,11 +249,12 @@ class AvroSuite extends FunSuite {
   }
 
   test("converting some specific sparkSQL types to avro") {
-    val testSchema = StructType(Seq(StructField("Name", StringType, false),
-                                    StructField("Length", IntegerType, true),
-                                    StructField("Time", TimestampType, false),
-                                    StructField("Decimal", DecimalType(10, 10), true),
-                                    StructField("Binary", BinaryType, false)))
+    val testSchema = StructType(Seq(
+      StructField("Name", StringType, false),
+      StructField("Length", IntegerType, true),
+      StructField("Time", TimestampType, false),
+      StructField("Decimal", DecimalType(10, 10), true),
+      StructField("Binary", BinaryType, false)))
 
     val arrayOfByte = new Array[Byte](4)
     for (i <- 0 until arrayOfByte.size) {
@@ -273,27 +275,27 @@ class AvroSuite extends FunSuite {
     // TimesStamps are converted to longs
     val times = TestSQLContext
       .avroFile(avroDir)
-      .select('Time)
+      .select("Time")
       .collect()
     assert(times.map(_(0)).toSet == Set(666, 777, 42))
 
     // DecimalType should be converted to string
     val decimals = TestSQLContext
       .avroFile(avroDir)
-      .select('Decimal)
+      .select("Decimal")
       .collect()
     assert(decimals.map(_(0)).contains("3.14"))
 
     // There should be a null entry
     val length = TestSQLContext
       .avroFile(avroDir)
-      .select('Length)
+      .select("Length")
       .collect()
     assert(length.map(_(0)).contains(null))
 
     val binary = TestSQLContext
       .avroFile(avroDir)
-      .select('Binary)
+      .select("Binary")
       .collect()
     for (i <- 0 until arrayOfByte.size) {
       assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
@@ -327,42 +329,45 @@ class AvroSuite extends FunSuite {
   }
 
   test("reading with different partitions number choices") {
+    def getNumPartitions(df: DataFrame): Long = {
+      df.mapPartitions((it) => it).partitions.length
+    }
     val defaultMinPartitions = TestSQLContext.sparkContext.defaultMinPartitions
 
-    // Read a single file, and use the default partititons number
+    // Read a single file, and use the default partitions number
     val e1 = TestSQLContext
       .avroFile(testFile)
-    assert(e1.partitions.size == defaultMinPartitions)
+    assert(getNumPartitions(e1) == defaultMinPartitions)
 
     // Read a single file, and set the partitions number larger than file number
     val e2 = TestSQLContext
       .avroFile(testFile, 12)
-    assert(e2.partitions.size == 12)
+    assert(getNumPartitions(e2) == 12)
 
-    // Read a single file, provide a invalid partitons number (negative one)
+    // Read a single file, provide a invalid partitions number (negative one)
     val e3 = TestSQLContext
       .avroFile(testFile, -9)
-    assert(e3.partitions.size == defaultMinPartitions)
+    assert(getNumPartitions(e3) == defaultMinPartitions)
 
-    // Read muitple files, and use the default parititons number
+    // Read muitple files, and use the default partitions number
     val e4 = TestSQLContext
       .avroFile(testRandomPartitionedFiles)
-    assert(e4.partitions.size == 11)
+    assert(getNumPartitions(e4) == 11)
 
     // Read multiple files, and set the partitions number smaller than file number
     val e5 = TestSQLContext
       .avroFile(testRandomPartitionedFiles, 1)
-    assert(e5.partitions.size == 11)
+    assert(getNumPartitions(e5) == 11)
 
     // Read multiple files, and set the partitions number larger than file number
-    // But there is no guarantee what is the exact number of parititons because when record size
-    // varies. We only know it should be approximately larger than the specificed number.
+    // But there is no guarantee what is the exact number of partitions because when record size
+    // varies. We only know it should be approximately larger than the specified number.
     val e6 = TestSQLContext
       .avroFile(testRandomPartitionedFiles, 22)
-    assert(e6.partitions.size >= 22)
+    assert(getNumPartitions(e6) >= 22)
 
     val e7 = TestSQLContext
       .avroFile(testRandomPartitionedFiles, 110)
-    assert(e7.partitions.size >= 110)
-  } 
+    assert(getNumPartitions(e7) >= 110)
+  }
 }
