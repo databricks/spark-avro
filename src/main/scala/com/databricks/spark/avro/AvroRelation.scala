@@ -135,7 +135,7 @@ case class AvroRelation(location: String, minPartitions: Int = 0)
           if (item == null) {
             null
           } else {
-            val record = item.asInstanceOf[Record]
+            val record = item.asInstanceOf[GenericRecord]
             val converted = new Array[Any](fieldConverters.size)
             var idx = 0
             while (idx < fieldConverters.size) {
