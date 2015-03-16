@@ -370,4 +370,46 @@ class AvroSuite extends FunSuite {
       .avroFile(testRandomPartitionedFiles, 110)
     assert(getNumPartitions(e7) >= 110)
   }
+
+  test("SQL test insert overwrite") {
+    val tempEmptyDir = "target/test/empty/"
+    // Create a temp directory for table that will be overwritten
+    TestUtils.deleteRecursively(new File(tempEmptyDir))
+    new File(tempEmptyDir).mkdirs()
+    sql(
+      s"""
+        |CREATE TEMPORARY TABLE episodes
+        |USING com.databricks.spark.avro
+        |OPTIONS (path "$episodesFile")
+      """.stripMargin.replaceAll("\n", " "))
+    sql(s"""
+        |CREATE TEMPORARY TABLE episodesEmpty
+        |(name string, air_date string, doctor int)
+        |USING com.databricks.spark.avro
+        |OPTIONS (path "$tempEmptyDir")
+      """.stripMargin.replaceAll("\n", " "))
+
+    assert(sql("SELECT * FROM episodes").collect().size === 8)
+    assert(sql("SELECT * FROM episodesEmpty").collect().isEmpty)
+
+    sql(
+      s"""
+        |INSERT OVERWRITE TABLE episodesEmpty
+        |SELECT * FROM episodes
+      """.stripMargin.replaceAll("\n", " "))
+    assert(sql("SELECT * FROM episodesEmpty").collect().size == 8)
+  }
+
+  test("test save and load") {
+    // Test if load works as expected
+    val df = TestSQLContext.load(episodesFile, "com.databricks.spark.avro")
+    assert(df.count == 8)
+
+    // Test if save works as expected
+    val tempSaveDir = "target/test/save/"
+    TestUtils.deleteRecursively(new File(tempSaveDir))
+    df.save(tempSaveDir, "com.databricks.spark.avro")
+    val newDf = TestSQLContext.load(tempSaveDir, "com.databricks.spark.avro")
+    assert(newDf.count == 8)
+  }
 }

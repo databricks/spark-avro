@@ -60,17 +60,19 @@ class DefaultSource
     val doSave = if (fs.exists(filesystemPath)) {
       mode match {
         case SaveMode.Append =>
-          sys.error(s"Append mode is not supported by ${this.getClass.getCanonicalName}")
+          sys.error(s"Append mode is not supported by ${this.getClass.getName}")
         case SaveMode.Overwrite =>
           fs.delete(filesystemPath, true)
           true
         case SaveMode.ErrorIfExists =>
           sys.error(s"path $path already exists.")
-        case SaveMode.Ignore => false
+        case SaveMode.Ignore =>
+          false
       }
     } else {
       true
     }
+
     if (doSave) {
       // Only save data when the save mode is not ignore.
       data.saveAsAvroFile(path)

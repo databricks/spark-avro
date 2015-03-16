@@ -26,7 +26,7 @@ import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericData.{Fixed, Record}
 import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
 import org.apache.avro.mapred.FsInput
-import org.apache.avro.Schema
+import org.apache.avro.{SchemaBuilder, Schema}
 import org.apache.avro.Schema.Type._
 
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -40,27 +40,33 @@ case class AvroRelation(
     location: String,
     userSpecifiedSchema: Option[StructType],
     minPartitions: Int = 0) (@transient val sqlContext: SQLContext)
-    extends BaseRelation with TableScan with InsertableRelation {
+  extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
   override val schema = {
-    if (userSpecifiedSchema != None) {
+    if (userSpecifiedSchema.isDefined) {
+      // We need avroSchema to construct converter
+      avroSchema = SchemaConverters.convertStructToAvro(userSpecifiedSchema.get,
+        SchemaBuilder.record("topLevelRecord"))
       userSpecifiedSchema.get
     } else {
       val fileReader = newReader()
-      avroSchema = fileReader.getSchema
-      val convertedSchema = SchemaConverters.toSqlType(fileReader.getSchema).dataType match {
+      try {
+        avroSchema = fileReader.getSchema
+      } finally {
+        fileReader.close()
+      }
+      val convertedSchema = SchemaConverters.toSqlType(avroSchema).dataType match {
         case s: StructType => s
         case other =>
           sys.error(s"Avro files must contain Records to be read, type $other not supported")
       }
-      fileReader.close()
       convertedSchema
     }
   }
 
   // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
-  override lazy val buildScan = {
+  override def buildScan = {
     val minPartitionsNum = if (minPartitions <= 0) {
       sqlContext.sparkContext.defaultMinPartitions
     } else {
@@ -143,7 +149,7 @@ case class AvroRelation(
           if (item == null) {
             null
           } else {
-            val record = item.asInstanceOf[Record]
+            val record = item.asInstanceOf[GenericRecord]
             val converted = new Array[Any](fieldConverters.size)
             var idx = 0
             while (idx < fieldConverters.size) {
@@ -219,7 +225,7 @@ case class AvroRelation(
   }
 
   // The function below was borrowed from JSONRelation
-  override def insert(data: DataFrame, overwrite: Boolean) = {
+  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val filesystemPath = new Path(location)
     val fs = filesystemPath.getFileSystem(sqlContext.sparkContext.hadoopConfiguration)
 
@@ -230,7 +236,7 @@ case class AvroRelation(
         case e: IOException =>
           throw new IOException(
             s"Unable to clear output directory ${filesystemPath.toString} prior"
-              + s" to INSERT OVERWRITE a AVRO table:\n${e.toString}")
+              + s" to INSERT OVERWRITE a AVRO table:", e)
       }
       // Write the data.
       data.saveAsAvroFile(location)
