@@ -13,8 +13,8 @@ import org.apache.spark.sql.test.TestSQLContext
 
 /**
  * This object runs a simple benchmark test to find out how long does it take to write a large
- * SchemaRDD to an avro file. It reads one argument, which specifies how many rows does the
- * SchemaRDD that we're writing contain.
+ * DataFrame to an avro file. It reads one argument, which specifies how many rows does the
+ * DataFrame that we're writing contain.
  */
 object AvroWriteBenchmark {
 
@@ -51,13 +51,13 @@ object AvroWriteBenchmark {
 
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
-    val testSchemaRDD = TestSQLContext.applySchema(createLargeRDD(numberOfRows), testSchema)
+    val testDataFrame = TestSQLContext.applySchema(createLargeRDD(numberOfRows), testSchema)
 
-    println("\n\n\nStaring benchmark test - writing a SchemaRDD as avro file\n\n\n")
+    println("\n\n\nStaring benchmark test - writing a DataFrame as avro file\n\n\n")
 
     val startTime = System.nanoTime
 
-    AvroSaver.save(testSchemaRDD, avroDir)
+    AvroSaver.save(testDataFrame, avroDir)
 
     val endTime = System.nanoTime
     val executionTime = TimeUnit.SECONDS.convert(endTime - startTime, TimeUnit.NANOSECONDS)

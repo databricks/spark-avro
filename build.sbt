@@ -1,12 +1,12 @@
 name := "spark-avro"
 
-version := "0.1"
+version := "0.2-SNAPSHOT"
 
 organization := "com.databricks"
 
 scalaVersion := "2.10.4"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.2.0" % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.3.0-SNAPSHOT" % "provided"
 
 libraryDependencies += "org.apache.avro" % "avro" % "1.7.7" exclude("org.mortbay.jetty", "servlet-api")
 

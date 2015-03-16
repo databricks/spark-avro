@@ -93,7 +93,7 @@ StructType -> record
 
 ### Scala API
 
-To get a SchemaRDD from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
+To get a DataFrame from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
 
 ```
 scala> import org.apache.spark.sql.SQLContext
@@ -103,8 +103,8 @@ scala> val sqlContext = new SQLContext(sc)
 scala> import com.databricks.spark.avro._
 
 scala> val episodes = sqlContext.avroFile("episodes.avro")
-episodes: org.apache.spark.sql.SchemaRDD = 
-SchemaRDD[0] at RDD at SchemaRDD.scala:104
+episodes: org.apache.spark.sql.DataFrame =
+DataFrame[0] at RDD at DataFrame.scala:104
 == Query Plan ==
 == Physical Plan ==
 PhysicalRDD [title#0,air_date#1,doctor#2], MappedRDD[2] at map at AvroRelation.scala:54
@@ -116,7 +116,7 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
-To save SchemaRDD as avro you should use the `save()` method in `AvroSaver`. For example:
+To save DataFrame as avro you should use the `save()` method in `AvroSaver`. For example:
 
 ```
 scala> AvroSaver.save(myRDD, "my/output/dir")
@@ -134,12 +134,12 @@ OPTIONS (path "episodes.avro")
 ```
 
 ### Java API
-Avro files can be read using static functions in AvroUtils. Same goes for saving SchemaRDD as Avro.
+Avro files can be read using static functions in AvroUtils. Same goes for saving DataFrame as Avro.
 
 ```java
 import com.databricks.spark.avro.AvroUtils;
 
-JavaSchemaRDD episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
+JavaDataFrame episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
 
 ## Building From Source
@@ -152,6 +152,6 @@ To run the tests, you should run `sbt/sbt test`. In case you are doing improveme
 
 `sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data inside `target/avroForBenchmark/` and tells you how long did the operation take.
 
-Similarly, you can do benchmarks on how long does it take to write SchemaRDD as avro file with:
+Similarly, you can do benchmarks on how long does it take to write DataFrame as avro file with:
 
- `sbt/sbt "test:run-main com.databricks.spark.avro.AvroWriteBenchmark NUMBER_OF_ROWS"`, where `NUMBER_OF_ROWS` is an optional parameter that allows you to specify the number of rows in SchemaRDD that we will be writing.
+ `sbt/sbt "test:run-main com.databricks.spark.avro.AvroWriteBenchmark NUMBER_OF_ROWS"`, where `NUMBER_OF_ROWS` is an optional parameter that allows you to specify the number of rows in DataFrame that we will be writing.

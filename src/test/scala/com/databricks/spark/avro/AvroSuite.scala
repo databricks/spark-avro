@@ -262,11 +262,11 @@ class AvroSuite extends FunSuite {
       Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
       Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
       Row("Munich", 8, new Timestamp(42), 3.14, arrayOfByte)))
-    val citySchemaRDD = TestSQLContext.applySchema(cityRDD, testSchema)
+    val cityDataFrame = TestSQLContext.applySchema(cityRDD, testSchema)
 
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
-    AvroSaver.save(citySchemaRDD, avroDir)
+    AvroSaver.save(cityDataFrame, avroDir)
 
     assert(TestSQLContext.avroFile(avroDir).collect().size == 3)
 
