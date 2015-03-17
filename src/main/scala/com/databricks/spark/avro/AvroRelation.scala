@@ -65,7 +65,6 @@ case class AvroRelation(
     }
   }
 
-  // By making this a lazy val we keep the RDD around, amortizing the cost of locating splits.
   override def buildScan = {
     val minPartitionsNum = if (minPartitions <= 0) {
       sqlContext.sparkContext.defaultMinPartitions

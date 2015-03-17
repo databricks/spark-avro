@@ -6,7 +6,7 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 
 ## Requirements
 
-This library requires Spark 1.3+
+This library requires Spark 1.3+. Right now, you can only build it from source, but it will published soon.
 
 ## Linking
 You can link against this library in your program at the following coordiates:
@@ -93,7 +93,16 @@ StructType -> record
 
 ### Scala API
 
-To get a DataFrame from avro file, you can use the library by loading the implicits from `com.databricks.spark.avro._`.
+A recommended way to read query Avro data in sparkSQL, or save sparkSQL data as Avro is by using native DataFrame APIs (available in Scala, Java and Python, starting from Spark 1.3):
+
+```
+// creates a DataFrame from a specified file
+val df = sqlContext.load("/my/file.avro", "com.databricks.spark.avro")
+// Saves df to /new/dir/ as avro files
+df.save("/new/dir/", "com.databricks.spark.avro")
+```
+
+An alternative way is to use `avroFile` and `save` methods (available in 1.2+):
 
 ```
 scala> import org.apache.spark.sql.SQLContext
@@ -116,30 +125,21 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
-To save DataFrame as avro you should use the `save()` method in `AvroSaver`. For example:
+To save DataFrame as avro you should use the `save` method in `AvroSaver`. For example:
 
 ```
 scala> AvroSaver.save(myRDD, "my/output/dir")
 ```
 
-We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema.
+We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema. Additionally, files used must have a .avro extension.
 
-### Python and SQL API
-Avro data can be queried in pure SQL or from python by registering the data as a temporary table.
+### SQL API
+Avro data can be queried in pure SQL by registering the data as a temporary table.
 
 ```sql
 CREATE TEMPORARY TABLE episodes
 USING com.databricks.spark.avro
 OPTIONS (path "episodes.avro")
-```
-
-### Java API
-Avro files can be read using static functions in AvroUtils. Same goes for saving DataFrame as Avro.
-
-```java
-import com.databricks.spark.avro.AvroUtils;
-
-DataFrame episodes = AvroUtils.avroFile(sqlContext, "episodes.avro");
 ```
 
 ## Building From Source
