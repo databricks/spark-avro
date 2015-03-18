@@ -1,16 +1,16 @@
 name := "spark-avro"
 
-version := "0.1"
+version := "1.0.0"
 
 organization := "com.databricks"
 
 scalaVersion := "2.10.4"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.2.0" % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.3.0" % "provided"
 
-libraryDependencies += "org.apache.avro" % "avro" % "1.7.7" exclude("org.mortbay.jetty", "servlet-api")
+libraryDependencies += "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api")
 
-libraryDependencies += "org.apache.avro" % "avro-mapred" % "1.7.7" exclude("org.mortbay.jetty", "servlet-api")
+libraryDependencies += "org.apache.avro" % "avro-mapred" % "1.7.6" % "provided" exclude("org.mortbay.jetty", "servlet-api")
 
 publishMavenStyle := true
 
@@ -41,9 +41,11 @@ pomExtra := (
       <name>Michael Armbrust</name>
       <url>https://github.com/marmbrus</url>
     </developer>
+    <developer>
+      <id>vlyubin</id>
+      <name>Volodymyr Lyubinets</name>
+      <url>https://github.com/vlyubin</url>
+    </developer>
   </developers>)
-
-// Enable Junit testing.
-// libraryDependencies += "com.novocode" % "junit-interface" % "0.9" % "test"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"

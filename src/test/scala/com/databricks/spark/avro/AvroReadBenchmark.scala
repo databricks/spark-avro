@@ -8,7 +8,7 @@ import org.apache.spark.sql.test.TestSQLContext
 
 /**
  * This object runs a simple benchmark test on the avro files in benchmarkFilesDir. It measures
- * how long does it take to convert them into SchemaRDD and run count() method on them. See
+ * how long does it take to convert them into DataFrame and run count() method on them. See
  * README on how to invoke it.
  */
 object AvroReadBenchmark {
@@ -20,7 +20,7 @@ object AvroReadBenchmark {
         "is empty. First you should generate some files to run a benchmark with (see README)")
     }
 
-    println("\n\n\nStaring benchmark test - creating SchemaRDD from benchmark avro files\n\n\n")
+    println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
 
     val startTime = System.nanoTime
     TestSQLContext

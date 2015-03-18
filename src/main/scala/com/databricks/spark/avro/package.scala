@@ -15,7 +15,7 @@
  */
 package com.databricks.spark
 
-import org.apache.spark.sql.{SQLContext, SchemaRDD}
+import org.apache.spark.sql.{SQLContext, DataFrame}
 
 package object avro {
 
@@ -24,13 +24,13 @@ package object avro {
    */
   implicit class AvroContext(sqlContext: SQLContext) {
     def avroFile(filePath: String, minPartitions: Int = 0) =
-      sqlContext.baseRelationToSchemaRDD(AvroRelation(filePath, minPartitions)(sqlContext))
+      sqlContext.baseRelationToDataFrame(AvroRelation(filePath, None, minPartitions)(sqlContext))
   }
 
   /**
-   * Adds a method, `saveAsAvroFile`, to SchemaRDD that allows you to save it as avro file.
+   * Adds a method, `saveAsAvroFile`, to DataFrame that allows you to save it as avro file.
    */
-  implicit class AvroSchemaRDD(schemaRDD: SchemaRDD) {
-    def saveAsAvroFile(path: String): Unit = AvroSaver.save(schemaRDD, path)
+  implicit class AvroDataFrame(dataFrame: DataFrame) {
+    def saveAsAvroFile(path: String): Unit = AvroSaver.save(dataFrame, path)
   }
 }
