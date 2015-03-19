@@ -6,18 +6,18 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 
 ## Requirements
 
-This library requires Spark 1.3+. Right now, you can only build it from source, but it will published soon.
+This library requires Spark 1.3+. There is a 1.2 version as well.
 
 ## Linking
-You can link against this library in your program at the following coordiates:
+You can link against this library (for spark 1.3+) in your program at the following coordinates:
 
 ```
 groupId: com.databricks
 artifactId: spark-avro_2.10
-version: 0.1
+version: 1.0.0
 ```
 
-Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "0.1"`
+Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "1.0.0"`
 
 <!---
 TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
@@ -26,22 +26,18 @@ TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
 The spark-avro jar file can also be added to a Spark using the `--jars` command line option.  For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --jars spark-avro_2.10-0.1.jar
-
-Spark assembly has been built with Hive, including Datanucleus jars on classpath
-Welcome to
-      ____              __
-     / __/__  ___ _____/ /__
-    _\ \/ _ \/ _ `/ __/  '_/
-   /___/ .__/\_,_/_/ /_/\_\   version 1.2.0
-      /_/
-
-Using Scala version 2.10.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_45)
-Type in expressions to have them evaluated.
-Type :help for more information.
-2014-10-30 13:21:11.442 java[4635:1903] Unable to load realm info from SCDynamicStore
-Spark context available as sc.
+$ bin/spark-shell --jars spark-avro_2.10-1.0.0.jar
 ```
+
+For use with Spark 1.2, you can use version 0.2.0 instead:
+
+```
+groupId: com.databricks
+artifactId: spark-avro_2.10
+version: 0.2.0
+```
+
+Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "0.2.0"`
 
 ## Features
 These examples use an avro file available for download [here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
@@ -96,8 +92,10 @@ StructType -> record
 A recommended way to read query Avro data in sparkSQL, or save sparkSQL data as Avro is by using native DataFrame APIs (available in Scala, Java and Python, starting from Spark 1.3):
 
 ```
-// creates a DataFrame from a specified file
-val df = sqlContext.load("/my/file.avro", "com.databricks.spark.avro")
+import org.apache.spark.sql._
+val sqlContext = new SQLContext(sc)
+// Creates a DataFrame from a specified file
+val df = sqlContext.load("src/test/resources/episodes.avro", "com.databricks.spark.avro")
 // Saves df to /new/dir/ as avro files
 df.save("/new/dir/", "com.databricks.spark.avro")
 ```
@@ -111,7 +109,7 @@ scala> val sqlContext = new SQLContext(sc)
 
 scala> import com.databricks.spark.avro._
 
-scala> val episodes = sqlContext.avroFile("episodes.avro")
+scala> val episodes = sqlContext.avroFile("episodes.avro", 20)
 episodes: org.apache.spark.sql.DataFrame =
 DataFrame[0] at RDD at DataFrame.scala:104
 == Query Plan ==
@@ -125,6 +123,7 @@ scala> episodes.select('title).collect()
 res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
 ```
 
+`avroFile` allows you to specify the `minPartitions` parameter as its second argument.
 To save DataFrame as avro you should use the `save` method in `AvroSaver`. For example:
 
 ```
@@ -133,13 +132,24 @@ scala> AvroSaver.save(myRDD, "my/output/dir")
 
 We also support the ability to read all avro files from some directory. To do that, you can pass a path to that directory to the avroFile() function. However, there is a limitation - all of those files must have the same schema. Additionally, files used must have a .avro extension.
 
+### Python API
+
+As mentioned before, a recommended way to query avro is to use native DataFrame APIs. The code is almost identical to Scala:
+
+```
+// Creates a DataFrame from a specified file
+df = sqlContext.load("src/test/resources/episodes.avro", "com.databricks.spark.avro")
+// Saves df to /new/dir/ as avro files
+df.save("/new/dir/", "com.databricks.spark.avro")
+```
+
 ### SQL API
 Avro data can be queried in pure SQL by registering the data as a temporary table.
 
 ```sql
 CREATE TEMPORARY TABLE episodes
 USING com.databricks.spark.avro
-OPTIONS (path "episodes.avro")
+OPTIONS (path "src/test/resources/episodes.avro")
 ```
 
 ## Building From Source

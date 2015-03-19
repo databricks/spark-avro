@@ -6,6 +6,8 @@ resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/release
 
 resolvers += "sonatype-releases" at "https://oss.sonatype.org/content/repositories/releases/"
 
+resolvers += "Spark Package Main Repo" at "https://dl.bintray.com/spark-packages/maven"
+
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.11.2")
 
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")
@@ -30,6 +32,8 @@ addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.3.1")
 addSbtPlugin("com.cavorite" % "sbt-avro" % "0.3.2")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-pgp" % "0.8")
+
+addSbtPlugin("org.spark-packages" % "sbt-spark-package" % "0.2.0")
 
 libraryDependencies += "org.ow2.asm"  % "asm" % "5.0.3"
 
