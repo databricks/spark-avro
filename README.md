@@ -9,7 +9,7 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 This library requires Spark 1.3+. There is a 1.2 version as well.
 
 ## Linking
-You can link against this library (for spark 1.3+) in your program at the following coordinates:
+You can link against this library (for Spark 1.3+) in your program at the following coordinates:
 
 ```
 groupId: com.databricks
@@ -29,15 +29,7 @@ The spark-avro jar file can also be added to a Spark using the `--jars` command 
 $ bin/spark-shell --jars spark-avro_2.10-1.0.0.jar
 ```
 
-For use with Spark 1.2, you can use version 0.2.0 instead:
-
-```
-groupId: com.databricks
-artifactId: spark-avro_2.10
-version: 0.2.0
-```
-
-Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "0.2.0"`
+For use with Spark 1.2, you can use version `0.2.0` instead.
 
 ## Features
 These examples use an avro file available for download [here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
