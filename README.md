@@ -17,7 +17,7 @@ artifactId: spark-avro_2.10
 version: 1.0.0
 ```
 
-Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "1.0.0"`
+Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro_2.10" % "1.0.0"`
 
 <!---
 TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
@@ -37,7 +37,7 @@ artifactId: spark-avro_2.10
 version: 0.2.0
 ```
 
-Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "0.2.0"`
+Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro_2.10" % "0.2.0"`
 
 ## Features
 These examples use an avro file available for download [here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
