@@ -33,9 +33,9 @@ object AvroWriteBenchmark {
 
   private def generateRandomRow(): Row = {
     val rand = new Random()
-    Row(rand.nextString(defaultSize), rand.nextInt, rand.nextDouble, rand.nextDouble,
+    Row(rand.nextString(defaultSize), rand.nextInt(), rand.nextDouble(), rand.nextDouble(),
       TestUtils.generateRandomArray(rand, defaultSize).toSeq,
-      TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt))
+      TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
   }
 
   private def createLargeRDD(numberOfRows: Int): RDD[Row] = {
@@ -66,6 +66,6 @@ object AvroWriteBenchmark {
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
     TestUtils.deleteRecursively(tempDir)
-    TestSQLContext.sparkContext.stop // Otherwise scary exception message appears
+    TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

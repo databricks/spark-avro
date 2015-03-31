@@ -23,7 +23,7 @@ import scala.collection.JavaConversions._
 
 import org.apache.avro.file.DataFileReader
 import org.apache.avro.generic.GenericData
-import org.apache.avro.generic.GenericData.{Fixed, Record}
+import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
 import org.apache.avro.mapred.FsInput
 import org.apache.avro.{SchemaBuilder, Schema}
@@ -31,6 +31,7 @@ import org.apache.avro.Schema.Type._
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
@@ -43,7 +44,7 @@ case class AvroRelation(
   extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
-  override val schema = {
+  override val schema: StructType = {
     if (userSpecifiedSchema.isDefined) {
       // We need avroSchema to construct converter
       avroSchema = SchemaConverters.convertStructToAvro(userSpecifiedSchema.get,
@@ -65,7 +66,7 @@ case class AvroRelation(
     }
   }
 
-  override def buildScan = {
+  override def buildScan(): RDD[Row] = {
     val minPartitionsNum = if (minPartitions <= 0) {
       sqlContext.sparkContext.defaultMinPartitions
     } else {

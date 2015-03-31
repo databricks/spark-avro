@@ -45,8 +45,8 @@ object AvroFileGenerator {
     while (idx < numberOfRecords) {
       avroRec.put("string", rand.nextString(objectSize))
       avroRec.put("simple_map", TestUtils.generateRandomMap(rand, objectSize))
-      avroRec.put("union_int_long_null", rand.nextInt)
-      avroRec.put("union_float_double", rand.nextDouble)
+      avroRec.put("union_int_long_null", rand.nextInt())
+      avroRec.put("union_float_double", rand.nextDouble())
       avroRec.put("inner_record", innerRec)
       avroRec.put("array_of_boolean", TestUtils.generateRandomArray(rand, objectSize))
       avroRec.put("bytes", generateRandomByteBuffer(rand))
