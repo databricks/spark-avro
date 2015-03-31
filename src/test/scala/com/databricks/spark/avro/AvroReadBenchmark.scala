@@ -31,6 +31,6 @@ object AvroReadBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    TestSQLContext.sparkContext.stop // Otherwise scary exception message appears
+    TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

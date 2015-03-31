@@ -99,7 +99,7 @@ private[avro] object TestUtils {
   private[avro] def generateRandomArray(rand: Random, size: Int): ArrayList[Boolean] = {
     val vec = new ArrayList[Boolean]()
     for (i <- 0 until size) {
-      vec.add(rand.nextBoolean)
+      vec.add(rand.nextBoolean())
     }
     vec
   }

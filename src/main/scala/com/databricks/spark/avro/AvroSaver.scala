@@ -62,8 +62,7 @@ object AvroSaver {
       rows: Iterator[Row],
       schema: StructType): Iterator[(AvroKey[GenericRecord], NullWritable)] = {
     val converter = createConverter(schema, "topLevelRecord")
-    rows.map(x => (new AvroKey(converter(x).asInstanceOf[GenericRecord]),
-      NullWritable.get())).toIterator
+    rows.map(x => (new AvroKey(converter(x).asInstanceOf[GenericRecord]), NullWritable.get()))
   }
 
   /**
@@ -137,8 +136,8 @@ object AvroSaver {
             val rowIterator = item.asInstanceOf[Row].toSeq.iterator
 
             while (convertersIterator.hasNext) {
-              val converter = convertersIterator.next
-              record.put(fieldNamesIterator.next, converter(rowIterator.next))
+              val converter = convertersIterator.next()
+              record.put(fieldNamesIterator.next(), converter(rowIterator.next()))
             }
             record
           }
