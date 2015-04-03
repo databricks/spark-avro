@@ -55,6 +55,8 @@ class DefaultSource
       parameters: Map[String, String],
       data: DataFrame): BaseRelation = {
     val path = parameters("path")
+    val recordName = parameters.getOrElse("recordName", "topLevelRecord")
+    val recordNamespace = parameters.getOrElse("recordNamespace", "")
     val filesystemPath = new Path(path)
     val fs = filesystemPath.getFileSystem(sqlContext.sparkContext.hadoopConfiguration)
     val doSave = if (fs.exists(filesystemPath)) {
@@ -75,7 +77,7 @@ class DefaultSource
 
     if (doSave) {
       // Only save data when the save mode is not ignore.
-      data.saveAsAvroFile(path)
+      data.saveAsAvroFile(path, recordName, recordNamespace)
     }
 
     createRelation(sqlContext, parameters, data.schema)

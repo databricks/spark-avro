@@ -40,7 +40,9 @@ import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan
 case class AvroRelation(
     location: String,
     userSpecifiedSchema: Option[StructType],
-    minPartitions: Int = 0) (@transient val sqlContext: SQLContext)
+    minPartitions: Int = 0,
+    recordName: String = "topLevelRecord",
+    recordNamespace: String = "") (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
@@ -48,7 +50,7 @@ case class AvroRelation(
     if (userSpecifiedSchema.isDefined) {
       // We need avroSchema to construct converter
       avroSchema = SchemaConverters.convertStructToAvro(userSpecifiedSchema.get,
-        SchemaBuilder.record("topLevelRecord"))
+        SchemaBuilder.record(recordName).namespace(recordNamespace), recordNamespace)
       userSpecifiedSchema.get
     } else {
       val fileReader = newReader()

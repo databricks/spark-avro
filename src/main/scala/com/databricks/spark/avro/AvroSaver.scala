@@ -44,14 +44,14 @@ import org.apache.hadoop.mapred.JobConf
  */
 object AvroSaver {
 
-  def save(dataFrame: DataFrame, location: String): Unit = {
+  def save(dataFrame: DataFrame, location: String, recordName: String = "topLevelRecord", recordNamespace: String = ""): Unit = {
     val jobConf = new JobConf(dataFrame.sqlContext.sparkContext.hadoopConfiguration)
-    val builder = SchemaBuilder.record("topLevelRecord")
+    val builder = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val schema = dataFrame.schema
-    val avroSchema = SchemaConverters.convertStructToAvro(schema, builder)
+    val avroSchema = SchemaConverters.convertStructToAvro(schema, builder, recordNamespace)
     AvroJob.setOutputSchema(jobConf, avroSchema)
 
-    dataFrame.mapPartitions(rowsToAvro(_, schema)).saveAsHadoopFile(location,
+    dataFrame.mapPartitions(rowsToAvro(_, schema, recordName, recordNamespace)).saveAsHadoopFile(location,
       classOf[AvroWrapper[GenericRecord]],
       classOf[NullWritable],
       classOf[AvroOutputFormat[GenericRecord]],
@@ -60,8 +60,10 @@ object AvroSaver {
 
   private def rowsToAvro(
       rows: Iterator[Row],
-      schema: StructType): Iterator[(AvroKey[GenericRecord], NullWritable)] = {
-    val converter = createConverter(schema, "topLevelRecord")
+      schema: StructType,
+      recordName: String,
+      recordNamespace: String): Iterator[(AvroKey[GenericRecord], NullWritable)] = {
+    val converter = createConverter(schema, recordName, recordNamespace )
     rows.map(x => (new AvroKey(converter(x).asInstanceOf[GenericRecord]), NullWritable.get()))
   }
 
@@ -69,7 +71,7 @@ object AvroSaver {
    * This function constructs converter function for a given sparkSQL datatype. These functions
    * will be used to convert dataFrame to avro format.
    */
-  def createConverter(dataType: DataType, structName: String): (Any) => Any = {
+  def createConverter(dataType: DataType, structName: String, recordNamespace: String): (Any) => Any = {
     dataType match {
       case ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType | StringType |
            BinaryType | BooleanType =>
@@ -84,7 +86,7 @@ object AvroSaver {
         }
 
       case ArrayType(elementType, _) =>
-        val elementConverter = createConverter(elementType, structName)
+        val elementConverter = createConverter(elementType, structName, recordNamespace)
 
         (item: Any) => {
           if (item == null) {
@@ -105,7 +107,7 @@ object AvroSaver {
         }
 
       case MapType(StringType, valueType, _) =>
-        val valueConverter = createConverter(valueType, structName)
+        val valueConverter = createConverter(valueType, structName, recordNamespace)
 
         (item: Any) => {
           if (item == null) {
@@ -120,11 +122,11 @@ object AvroSaver {
         }
 
       case structType: StructType =>
-        val builder = SchemaBuilder.record(structName)
+        val builder = SchemaBuilder.record(structName).namespace(recordNamespace)
         val schema: Schema = SchemaConverters.convertStructToAvro(
-          structType, builder)
+          structType, builder, recordNamespace)
         val fieldConverters = structType.fields.map(field =>
-          createConverter(field.dataType, field.name))
+          createConverter(field.dataType, field.name, recordNamespace))
 
         (item: Any) => {
           if (item == null) {
