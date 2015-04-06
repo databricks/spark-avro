@@ -101,9 +101,11 @@ private object SchemaConverters {
       val newField = fieldsAssembler.name(field.name).`type`()
 
       if (field.nullable) {
-        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace).noDefault
+        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
+          .noDefault
       } else {
-        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace).noDefault
+        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
+          .noDefault
       }
     }
     fieldsAssembler.endRecord()
@@ -142,7 +144,10 @@ private object SchemaConverters {
         schemaBuilder.map().values(valueSchema)
 
       case structType: StructType =>
-        convertStructToAvro(structType, schemaBuilder.record(structName).namespace(recordNamespace), recordNamespace)
+        convertStructToAvro(
+          structType,
+          schemaBuilder.record(structName).namespace(recordNamespace),
+          recordNamespace)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }
@@ -182,7 +187,10 @@ private object SchemaConverters {
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>
-        convertStructToAvro(structType, newFieldBuilder.record(structName).namespace(recordNamespace), recordNamespace)
+        convertStructToAvro(
+          structType,
+          newFieldBuilder.record(structName).namespace(recordNamespace),
+          recordNamespace)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }

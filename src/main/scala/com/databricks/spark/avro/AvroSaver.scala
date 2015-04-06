@@ -44,18 +44,23 @@ import org.apache.hadoop.mapred.JobConf
  */
 object AvroSaver {
 
-  def save(dataFrame: DataFrame, location: String, recordName: String = "topLevelRecord", recordNamespace: String = ""): Unit = {
+  def save(
+      dataFrame: DataFrame,
+      location: String,
+      recordName: String = "topLevelRecord",
+      recordNamespace: String = ""): Unit = {
     val jobConf = new JobConf(dataFrame.sqlContext.sparkContext.hadoopConfiguration)
     val builder = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val schema = dataFrame.schema
     val avroSchema = SchemaConverters.convertStructToAvro(schema, builder, recordNamespace)
     AvroJob.setOutputSchema(jobConf, avroSchema)
 
-    dataFrame.mapPartitions(rowsToAvro(_, schema, recordName, recordNamespace)).saveAsHadoopFile(location,
-      classOf[AvroWrapper[GenericRecord]],
-      classOf[NullWritable],
-      classOf[AvroOutputFormat[GenericRecord]],
-      jobConf)
+    dataFrame.mapPartitions(rowsToAvro(_, schema, recordName, recordNamespace))
+      .saveAsHadoopFile(location,
+        classOf[AvroWrapper[GenericRecord]],
+        classOf[NullWritable],
+        classOf[AvroOutputFormat[GenericRecord]],
+        jobConf)
   }
 
   private def rowsToAvro(
@@ -71,7 +76,10 @@ object AvroSaver {
    * This function constructs converter function for a given sparkSQL datatype. These functions
    * will be used to convert dataFrame to avro format.
    */
-  def createConverter(dataType: DataType, structName: String, recordNamespace: String): (Any) => Any = {
+  def createConverter(
+      dataType: DataType,
+      structName: String,
+      recordNamespace: String): (Any) => Any = {
     dataType match {
       case ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType | StringType |
            BinaryType | BooleanType =>
