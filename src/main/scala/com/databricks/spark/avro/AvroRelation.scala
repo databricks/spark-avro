@@ -44,6 +44,8 @@ case class AvroRelation(
   extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
+  val IgnoreAvroFileExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+
   override val schema: StructType = {
     if (userSpecifiedSchema.isDefined) {
       // We need avroSchema to construct converter
@@ -94,7 +96,8 @@ case class AvroRelation(
 
   private def newReader() = {
     val path = new Path(location)
-    val fs = FileSystem.get(path.toUri, sqlContext.sparkContext.hadoopConfiguration)
+    val hadoopConfiguration = sqlContext.sparkContext.hadoopConfiguration
+    val fs = FileSystem.get(path.toUri, hadoopConfiguration)
     val globStatus = fs.globStatus(path)
 
     if (globStatus == null) {
@@ -105,11 +108,17 @@ case class AvroRelation(
       .toStream
       .map(_.getPath)
       .flatMap(getAllFiles(fs)(_))
+    val isAvroFile : Path => Boolean =
+      if(hadoopConfiguration.getBoolean(IgnoreAvroFileExtensionProperty, true)) {
+        _.getName.endsWith("avro")
+      } else {
+        Function.const(true)
+      }
     val singleFile = statuses
-      .find(_.getName.endsWith("avro"))
+      .find(isAvroFile)
       .getOrElse(sys.error(s"Could not find .avro file with schema at $path"))
 
-    val input = new FsInput(singleFile, sqlContext.sparkContext.hadoopConfiguration)
+    val input = new FsInput(singleFile, hadoopConfiguration)
     val reader = new GenericDatumReader[GenericRecord]()
     DataFileReader.openReader(input, reader)
   }
