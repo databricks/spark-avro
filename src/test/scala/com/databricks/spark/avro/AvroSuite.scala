@@ -38,9 +38,8 @@ import TestSQLContext._
 private[avro] object TestUtils {
 
   /**
-   * This function deletes a file or a directory with everything that's in it. This function is
-   * copied from Spark with minor modifications made to it. See original source at:
-   * github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/Utils.scala
+   * This function checks that all records in a file match the original
+   * record.
    */
 
   def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
@@ -60,7 +59,7 @@ private[avro] object TestUtils {
     assert(originalEntries.size == newEntries.size)
 
     val origEntrySet = new Array[HashSet[Any]](originalEntries(0).size)
-    for (i <- 0 until originalEntries(0).size) {origEntrySet(i) = new HashSet[Any]()}
+    for (i <- 0 until originalEntries(0).size) { origEntrySet(i) = new HashSet[Any]() }
 
     for (origEntry <- originalEntries) {
       var idx = 0
@@ -78,6 +77,12 @@ private[avro] object TestUtils {
       }
     }
   }
+
+  /**
+   * This function deletes a file or a directory with everything that's in it. This function is
+   * copied from Spark with minor modifications made to it. See original source at:
+   * github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/Utils.scala
+   */
 
   def deleteRecursively(file: File) {
     def listFilesSafely(file: File): Seq[File] = {
@@ -258,10 +263,11 @@ class AvroSuite extends FunSuite {
     // get the same values back.
     val name = "AvroTest"
     val namespace = "com.databricks.spark.avro"
+    val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/namedAvro"
-    AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir, name, namespace)
+    AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir, parameters)
 
     TestUtils.checkReloadMatchesSaved(testFile, avroDir)
 
@@ -438,4 +444,5 @@ class AvroSuite extends FunSuite {
     val newDf = TestSQLContext.load(tempSaveDir, "com.databricks.spark.avro")
     assert(newDf.count == 8)
   }
+
 }

@@ -20,6 +20,7 @@ import java.nio.ByteBuffer
 import java.util.Map
 
 import scala.collection.JavaConversions._
+import scala.collection.immutable.{Map => ScalaMap}
 
 import org.apache.avro.file.DataFileReader
 import org.apache.avro.generic.GenericData
@@ -41,8 +42,9 @@ case class AvroRelation(
     location: String,
     userSpecifiedSchema: Option[StructType],
     minPartitions: Int = 0,
-    recordName: String = "topLevelRecord",
-    recordNamespace: String = "") (@transient val sqlContext: SQLContext)
+    recordName: String = AvroSaver.defaultParameters.get("recordName").get,
+    recordNamespace: String = AvroSaver.defaultParameters.get("recordNamespace").get)
+                       (@transient val sqlContext: SQLContext)
   extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
@@ -241,7 +243,9 @@ case class AvroRelation(
               + s" to INSERT OVERWRITE a AVRO table:", e)
       }
       // Write the data.
-      data.saveAsAvroFile(location)
+      data.saveAsAvroFile(
+        location,
+        ScalaMap("recordName" -> recordName, "recordNamespace" -> recordNamespace))
       // Right now, we assume that the schema is not changed. We will not update the schema.
       // schema = data.schema
     } else {

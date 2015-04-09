@@ -40,15 +40,26 @@ import org.apache.hadoop.mapred.JobConf
  * doesn't have a name associated with it, we are taking the name of the last structure field that
  * the current structure is a child of. For example if the row at the top level had a field called
  * "X", which happens to be a structure, we would call that structure "X". When we process original
- * rows, they get a name "topLevelRecord".
+ * rows, you can give them a name and namespace by passing in a parameters map that gives the name
+ * and namespace. For example parameters = Map("recordName" -> "MyRecordName", "recordNamespace"
+ * -> "com.mycompany.records"). If no parameters are passed in the original rows get a name
+ * "topLevelRecord".
  */
 object AvroSaver {
+
+  val defaultParameters = Map("recordName" -> "topLevelRecord", "recordNamespace" -> "")
 
   def save(
       dataFrame: DataFrame,
       location: String,
-      recordName: String = "topLevelRecord",
-      recordNamespace: String = ""): Unit = {
+      parameters: Map[String, String] = defaultParameters): Unit = {
+    val recordName = parameters.getOrElse(
+      "recordName",
+      defaultParameters.get("recordName").get)
+    val recordNamespace = parameters.getOrElse(
+      "recordNamespace",
+      defaultParameters.get("recordNamespace").get)
+
     val jobConf = new JobConf(dataFrame.sqlContext.sparkContext.hadoopConfiguration)
     val builder = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val schema = dataFrame.schema

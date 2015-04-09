@@ -32,8 +32,8 @@ package object avro {
    */
   implicit class AvroDataFrame(dataFrame: DataFrame) {
     def saveAsAvroFile(
-       path: String,
-       recordName: String = "topLevelRecord",
-       recordNamespace: String = ""): Unit = AvroSaver.save(dataFrame, path)
+        path: String,
+        parameters: Map[String, String] = AvroSaver.defaultParameters): Unit =
+      AvroSaver.save(dataFrame, path, parameters)
   }
 }
