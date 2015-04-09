@@ -58,9 +58,7 @@ private[avro] object TestUtils {
 
     assert(originalEntries.size == newEntries.size)
 
-    val origEntrySet = new Array[HashSet[Any]](originalEntries(0).size)
-    for (i <- 0 until originalEntries(0).size) { origEntrySet(i) = new HashSet[Any]() }
-
+    val origEntrySet = Array.fill(originalEntries(0).size)(new HashSet[Any]())
     for (origEntry <- originalEntries) {
       var idx = 0
       for (origElement <- origEntry.toSeq) {
