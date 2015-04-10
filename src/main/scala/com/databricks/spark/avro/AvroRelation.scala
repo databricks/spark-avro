@@ -44,7 +44,7 @@ case class AvroRelation(
   extends BaseRelation with TableScan with InsertableRelation {
   var avroSchema: Schema = null
 
-  val IgnoreAvroFileExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+  val IgnoreAvroFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
 
   override val schema: StructType = {
     if (userSpecifiedSchema.isDefined) {
@@ -108,15 +108,13 @@ case class AvroRelation(
       .toStream
       .map(_.getPath)
       .flatMap(getAllFiles(fs)(_))
-    val isAvroFile : Path => Boolean =
-      if(hadoopConfiguration.getBoolean(IgnoreAvroFileExtensionProperty, true)) {
-        _.getName.endsWith("avro")
-      } else {
-        Function.const(true)
-      }
-    val singleFile = statuses
-      .find(isAvroFile)
-      .getOrElse(sys.error(s"Could not find .avro file with schema at $path"))
+
+    val singleFile =
+      (if(hadoopConfiguration.getBoolean(IgnoreAvroFilesWithoutExtensionProperty, true)) {
+         statuses.find(_.getName.endsWith("avro"))
+       } else {
+         statuses.headOption
+       }).getOrElse(sys.error(s"Could not find .avro file with schema at $path"))
 
     val input = new FsInput(singleFile, hadoopConfiguration)
     val reader = new GenericDatumReader[GenericRecord]()
