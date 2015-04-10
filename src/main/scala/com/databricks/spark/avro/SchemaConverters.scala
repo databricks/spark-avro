@@ -94,15 +94,18 @@ private object SchemaConverters {
    */
   private[avro] def convertStructToAvro[T](
       structType: StructType,
-      schemaBuilder: RecordBuilder[T]): T = {
+      schemaBuilder: RecordBuilder[T],
+      recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
     structType.fields.foreach { field =>
       val newField = fieldsAssembler.name(field.name).`type`()
 
       if (field.nullable) {
-        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name).noDefault
+        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
+          .noDefault
       } else {
-        convertFieldTypeToAvro(field.dataType, newField, field.name).noDefault
+        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
+          .noDefault
       }
     }
     fieldsAssembler.endRecord()
@@ -115,7 +118,8 @@ private object SchemaConverters {
   private def convertTypeToAvro[T](
       dataType: DataType,
       schemaBuilder: BaseTypeBuilder[T],
-      structName: String): T = {
+      structName: String,
+      recordNamespace: String): T = {
     dataType match {
       case ByteType => schemaBuilder.intType()
       case ShortType => schemaBuilder.intType()
@@ -131,16 +135,19 @@ private object SchemaConverters {
 
       case ArrayType(elementType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[ArrayType].containsNull)
-        val elementSchema = convertTypeToAvro(elementType, builder, structName)
+        val elementSchema = convertTypeToAvro(elementType, builder, structName, recordNamespace)
         schemaBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[MapType].valueContainsNull)
-        val valueSchema = convertTypeToAvro(valueType, builder, structName)
+        val valueSchema = convertTypeToAvro(valueType, builder, structName, recordNamespace)
         schemaBuilder.map().values(valueSchema)
 
       case structType: StructType =>
-        convertStructToAvro(structType, schemaBuilder.record(structName))
+        convertStructToAvro(
+          structType,
+          schemaBuilder.record(structName).namespace(recordNamespace),
+          recordNamespace)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }
@@ -154,7 +161,8 @@ private object SchemaConverters {
   private def convertFieldTypeToAvro[T](
       dataType: DataType,
       newFieldBuilder: BaseFieldTypeBuilder[T],
-      structName: String): FieldDefault[T, _] = {
+      structName: String,
+      recordNamespace: String): FieldDefault[T, _] = {
     dataType match {
       case ByteType => newFieldBuilder.intType()
       case ShortType => newFieldBuilder.intType()
@@ -170,16 +178,19 @@ private object SchemaConverters {
 
       case ArrayType(elementType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[ArrayType].containsNull)
-        val elementSchema = convertTypeToAvro(elementType, builder, structName)
+        val elementSchema = convertTypeToAvro(elementType, builder, structName, recordNamespace)
         newFieldBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[MapType].valueContainsNull)
-        val valueSchema = convertTypeToAvro(valueType, builder, structName)
+        val valueSchema = convertTypeToAvro(valueType, builder, structName, recordNamespace)
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>
-        convertStructToAvro(structType, newFieldBuilder.record(structName))
+        convertStructToAvro(
+          structType,
+          newFieldBuilder.record(structName).namespace(recordNamespace),
+          recordNamespace)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }

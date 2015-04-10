@@ -127,6 +127,10 @@ To save DataFrame as avro you should use the `save` method in `AvroSaver`. For e
 ```scala
 scala> AvroSaver.save(myRDD, "my/output/dir")
 ```
+You can also specifiy the the record name and namespace with optional parameters:
+```scala
+scala> AvroSaver.save(myRDD, "my/output/dir", Map("recordName" -> "MyRecord", "recordNamespace" -> "com.mycompany.mystuff"))
+```
 
 We also support the ability to read all avro files from some directory. To do that, you can pass
 a path to that directory to the avroFile() function. However, there is a limitation - all of

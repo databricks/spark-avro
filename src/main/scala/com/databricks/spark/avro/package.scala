@@ -31,6 +31,9 @@ package object avro {
    * Adds a method, `saveAsAvroFile`, to DataFrame that allows you to save it as avro file.
    */
   implicit class AvroDataFrame(dataFrame: DataFrame) {
-    def saveAsAvroFile(path: String): Unit = AvroSaver.save(dataFrame, path)
+    def saveAsAvroFile(
+        path: String,
+        parameters: Map[String, String] = AvroSaver.defaultParameters): Unit =
+      AvroSaver.save(dataFrame, path, parameters)
   }
 }

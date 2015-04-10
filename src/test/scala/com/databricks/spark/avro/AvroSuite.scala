@@ -38,10 +38,50 @@ import TestSQLContext._
 private[avro] object TestUtils {
 
   /**
+   * This function checks that all records in a file match the original
+   * record.
+   */
+
+  def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
+
+    def convertToString(elem: Any): String = {
+      elem match {
+        case null => "NULL" // HashSets can't have null in them, so we use a string instead
+        case arrayBuf: ArrayBuffer[Any] => arrayBuf.toArray.deep.mkString(" ")
+        case arrayByte: Array[Byte] => arrayByte.deep.mkString(" ")
+        case other => other.toString
+      }
+    }
+
+    val originalEntries = TestSQLContext.avroFile(testFile).collect()
+    val newEntries = TestSQLContext.avroFile(avroDir).collect()
+
+    assert(originalEntries.size == newEntries.size)
+
+    val origEntrySet = Array.fill(originalEntries(0).size)(new HashSet[Any]())
+    for (origEntry <- originalEntries) {
+      var idx = 0
+      for (origElement <- origEntry.toSeq) {
+        origEntrySet(idx) += convertToString(origElement)
+        idx += 1
+      }
+    }
+
+    for (newEntry <- newEntries) {
+      var idx = 0
+      for (newElement <- newEntry.toSeq) {
+        assert(origEntrySet(idx).contains(convertToString(newElement)))
+        idx += 1
+      }
+    }
+  }
+
+  /**
    * This function deletes a file or a directory with everything that's in it. This function is
    * copied from Spark with minor modifications made to it. See original source at:
    * github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/Utils.scala
    */
+
   def deleteRecursively(file: File) {
     def listFilesSafely(file: File): Seq[File] = {
       if (file.exists()) {
@@ -208,42 +248,32 @@ class AvroSuite extends FunSuite {
     // Note that test.avro includes a variety of types, some of which are nullable. We expect to
     // get the same values back.
 
-    def convertToString(elem: Any): String = {
-      elem match {
-        case null => "NULL" // HashSets can't have null in them, so we use a string instead
-        case arrayBuf: ArrayBuffer[Any] => arrayBuf.toArray.deep.mkString(" ")
-        case arrayByte: Array[Byte] => arrayByte.deep.mkString(" ")
-        case other => other.toString
-      }
-    }
-
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
     AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir)
 
-    val originalEntries = TestSQLContext.avroFile(testFile).collect()
-    val newEntries = TestSQLContext.avroFile(avroDir).collect()
+    TestUtils.checkReloadMatchesSaved(testFile, avroDir)
+    TestUtils.deleteRecursively(tempDir)
+  }
 
-    assert(originalEntries.size == newEntries.size)
+  test("conversion to avro and back with namespace") {
+    // Note that test.avro includes a variety of types, some of which are nullable. We expect to
+    // get the same values back.
+    val name = "AvroTest"
+    val namespace = "com.databricks.spark.avro"
+    val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
-    val origEntrySet = new Array[HashSet[Any]](originalEntries(0).size)
-    for (i <- 0 until originalEntries(0).size) {origEntrySet(i) = new HashSet[Any]()}
+    val tempDir = Files.createTempDir()
+    val avroDir = tempDir + "/namedAvro"
+    AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir, parameters)
 
-    for (origEntry <- originalEntries) {
-      var idx = 0
-      for (origElement <- origEntry.toSeq) {
-        origEntrySet(idx) += convertToString(origElement)
-        idx += 1
-      }
-    }
+    TestUtils.checkReloadMatchesSaved(testFile, avroDir)
 
-    for (newEntry <- newEntries) {
-      var idx = 0
-      for (newElement <- newEntry.toSeq) {
-        assert(origEntrySet(idx).contains(convertToString(newElement)))
-        idx += 1
-      }
-    }
+    // Look at raw file and make sure has namespace info
+    val rawSaved = TestSQLContext.sparkContext.textFile(avroDir)
+    val schema = rawSaved.first()
+    assert(schema.contains(name))
+    assert(schema.contains(namespace))
 
     TestUtils.deleteRecursively(tempDir)
   }
@@ -412,4 +442,5 @@ class AvroSuite extends FunSuite {
     val newDf = TestSQLContext.load(tempSaveDir, "com.databricks.spark.avro")
     assert(newDf.count == 8)
   }
+
 }
