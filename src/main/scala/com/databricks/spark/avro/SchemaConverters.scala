@@ -49,7 +49,14 @@ private object SchemaConverters {
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
           val schemaType = toSqlType(f.schema())
-          StructField(f.name, schemaType.dataType, schemaType.nullable)
+          var meta = new MetadataBuilder()
+          if (f.doc != null) meta.putString("_doc", f.doc)
+          if(f.aliases() != null && f.aliases().size() > 0) {
+            val aliasArray = new Array[String](f.aliases().size())
+            f.aliases copyToArray(aliasArray)
+            meta.putStringArray("_aliases", aliasArray);
+          }
+          StructField(f.name, schemaType.dataType, schemaType.nullable, meta.build())
         }
 
         SchemaType(StructType(fields), nullable = false)
@@ -98,8 +105,14 @@ private object SchemaConverters {
       recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
     structType.fields.foreach { field =>
-      val newField = fieldsAssembler.name(field.name).`type`()
-
+      var newFieldBuilder = fieldsAssembler.name(field.name)
+      if(field.metadata contains("_doc")) {
+        newFieldBuilder = newFieldBuilder.doc(field.metadata.getString("_doc"))
+      }
+      if(field.metadata contains("_aliases")) {
+        newFieldBuilder = newFieldBuilder.aliases(field.metadata.getStringArray("_aliases"):_*)
+      }
+      val newField = newFieldBuilder.`type`()
       if (field.nullable) {
         convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
           .noDefault
