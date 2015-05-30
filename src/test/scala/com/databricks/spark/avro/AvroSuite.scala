@@ -443,4 +443,73 @@ class AvroSuite extends FunSuite {
     assert(newDf.count == 8)
   }
 
+  test("test doc in meta") {
+    val df = TestSQLContext.load(episodesFile, "com.databricks.spark.avro")
+    df.schema.fields(0).metadata.getString("_doc")
+
+    for(x <- df.schema.fields) {
+      if(x.name == "title") {
+        assert("episode title" == x.metadata.getString("_doc"))
+      } else if(x.name == "doctor") {
+        assert("main actor playing the Doctor in episode" == x.metadata.getString("_doc"))
+      } else if(x.name == "air_date") {
+        assert("initial date" == x.metadata.getString("_doc"))
+      }
+    }
+  }
+
+  test("test aliases in meta") {
+    val df = TestSQLContext.load(testFile, "com.databricks.spark.avro")
+
+    for (x <- df.schema.fields) {
+      if (x.name == "string") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 2)
+        assert(x.metadata.getStringArray("_aliases")(0) == "string_alias1")
+        assert(x.metadata.getStringArray("_aliases")(1) == "string_alias2")
+      } else if (x.name == "simple_map") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "map_alias")
+      } else if (x.name == "complex_map") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "complex_map_alias")
+      } else if (x.name == "union_string_null") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "union_string_alias")
+      } else if (x.name == "union_int_long_null") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "union_int_alias")
+      } else if (x.name == "union_float_double") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 2)
+        assert(x.metadata.getStringArray("_aliases")(0) == "union_float_alias1")
+        assert(x.metadata.getStringArray("_aliases")(1) == "union_float_alias2")
+      } else if (x.name == "fixed3") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "fixed3_alias")
+      } else if (x.name == "enum") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "enum_alias")
+      } else if (x.name == "value_field") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "value_field_alias")
+      } else if (x.name == "array_of_boolean") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "array_of_boolean_alias")
+      } else if (x.name == "bytes") {
+        assert(x.metadata.contains("_aliases"))
+        assert(x.metadata.getStringArray("_aliases").size == 1)
+        assert(x.metadata.getStringArray("_aliases")(0) == "bytes_alias")
+      }
+    }
+  }
+  
 }

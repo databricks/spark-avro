@@ -25,6 +25,7 @@ package object avro {
   implicit class AvroContext(sqlContext: SQLContext) {
     def avroFile(filePath: String, minPartitions: Int = 0) =
       sqlContext.baseRelationToDataFrame(AvroRelation(filePath, None, minPartitions)(sqlContext))
+
   }
 
   /**
@@ -35,5 +36,8 @@ package object avro {
         path: String,
         parameters: Map[String, String] = AvroSaver.defaultParameters): Unit =
       AvroSaver.save(dataFrame, path, parameters)
+
+    def addAvroAliasColumns() : DataFrame =
+      SchemaConverters.dataFrameWithAliasColumn(dataFrame)
   }
 }
