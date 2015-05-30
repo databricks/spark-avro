@@ -127,6 +127,14 @@ To save DataFrame as avro you should use the `save` method in `AvroSaver`. For e
 ```scala
 scala> AvroSaver.save(myRDD, "my/output/dir")
 ```
+
+To include aliases column in scheme invoke the method `addAvroAliasColumns()` of DataFrame.
+With alias while saving `saveAsAvroFile`, alias columns in DataFrame schema will not be include in Avro file.
+Alias will be available in `aliases` of avro schema.
+```scala
+scala>val dfWithAlias = df.addAvroAliasColumns()
+```
+
 You can also specifiy the the record name and namespace with optional parameters:
 ```scala
 scala> AvroSaver.save(myRDD, "my/output/dir", Map("recordName" -> "MyRecord", "recordNamespace" -> "com.mycompany.mystuff"))

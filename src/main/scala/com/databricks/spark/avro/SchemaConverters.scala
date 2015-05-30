@@ -16,12 +16,12 @@
 package com.databricks.spark.avro
 
 import scala.collection.JavaConversions._
-
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
-
 import org.apache.spark.sql.types._
 import org.apache.avro.Schema.Type._
+import org.apache.spark.sql.DataFrame
+import util.control.Breaks._
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -49,7 +49,15 @@ private object SchemaConverters {
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
           val schemaType = toSqlType(f.schema())
-          StructField(f.name, schemaType.dataType, schemaType.nullable)
+          var meta = new MetadataBuilder()
+          if (f.doc != null) meta.putString("_doc", f.doc)
+          if(f.aliases() != null && f.aliases().size() > 0) {
+            val aliasArray = new Array[String](f.aliases().size())
+            meta.putString("_parent", f.name)
+            f.aliases copyToArray(aliasArray)
+            meta.putStringArray("_aliases", aliasArray);
+          }
+          StructField(f.name, schemaType.dataType, schemaType.nullable, meta.build())
         }
 
         SchemaType(StructType(fields), nullable = false)
@@ -88,6 +96,19 @@ private object SchemaConverters {
     }
   }
 
+  def dataFrameWithAliasColumn(df : DataFrame) : DataFrame = {
+    var newDf = df
+    for(field <- df.schema.fields) {
+      if (field.metadata.contains("_aliases")) {
+        val aliasArray = field.metadata.getStringArray("_aliases")
+        for (alias <- aliasArray) {
+          newDf = newDf.withColumn(alias, df.col(field.name))
+        }
+      }
+    }
+    newDf
+  }
+
   /**
    * This function converts sparkSQL StructType into avro schema. This method uses two other
    * converter methods in order to do the conversion.
@@ -98,14 +119,25 @@ private object SchemaConverters {
       recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
     structType.fields.foreach { field =>
-      val newField = fieldsAssembler.name(field.name).`type`()
-
-      if (field.nullable) {
-        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
-          .noDefault
-      } else {
-        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
-          .noDefault
+      breakable {
+        if (field.metadata.contains("_aliases") && field.metadata.contains("_parent") && !field.metadata.getString("_parent").equals(field.name)) {
+          break
+        }
+        var newFieldBuilder = fieldsAssembler.name(field.name)
+        if (field.metadata contains ("_doc")) {
+          newFieldBuilder = newFieldBuilder.doc(field.metadata.getString("_doc"))
+        }
+        if (field.metadata.contains("_aliases")){
+          newFieldBuilder = newFieldBuilder.aliases(field.metadata.getStringArray("_aliases"): _*)
+        }
+        val newField = newFieldBuilder.`type`()
+        if (field.nullable) {
+          convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
+            .noDefault
+        } else {
+          convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
+            .noDefault
+        }
       }
     }
     fieldsAssembler.endRecord()
