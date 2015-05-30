@@ -120,7 +120,8 @@ private object SchemaConverters {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
     structType.fields.foreach { field =>
       breakable {
-        if (field.metadata.contains("_aliases") && field.metadata.contains("_parent") && !field.metadata.getString("_parent").equals(field.name)) {
+        if (field.metadata.contains("_aliases") && field.metadata.contains("_parent")
+            && !field.metadata.getString("_parent").equals(field.name)) {
           break
         }
         var newFieldBuilder = fieldsAssembler.name(field.name)
