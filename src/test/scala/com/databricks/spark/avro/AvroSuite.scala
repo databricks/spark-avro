@@ -512,4 +512,23 @@ class AvroSuite extends FunSuite {
     }
   }
   
+  test("test aliases columns in data frame") {
+    var df = TestSQLContext.load(testFile, "com.databricks.spark.avro")
+    var fieldArray = df.schema.fieldNames;
+    assert(fieldArray contains("string"))
+    assert(!(fieldArray contains("string_alias1")))
+    assert(!(fieldArray contains("string_alias2")))
+    assert(!(fieldArray contains("map_alias")))
+    assert(!(fieldArray contains("enum_alias")))
+    assert(!(fieldArray contains("union_int_alias")))
+
+    fieldArray = SchemaConverters.dataFrameWithAliasColumn(df).schema.fieldNames
+    assert(fieldArray contains("string"))
+    assert(fieldArray contains("string_alias1"))
+    assert(fieldArray contains("string_alias2"))
+    assert(fieldArray contains("map_alias"))
+    assert(fieldArray contains("enum_alias"))
+    assert(fieldArray contains("union_int_alias"))
+  }
+  
 }
