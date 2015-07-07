@@ -15,6 +15,7 @@
  */
 package com.databricks.spark.avro
 
+import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
@@ -92,9 +93,8 @@ object AvroSaver {
       structName: String,
       recordNamespace: String): (Any) => Any = {
     dataType match {
-      case ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType | StringType |
-           BinaryType | BooleanType =>
-        (item: Any) => item
+      case BinaryType => (item: Any) => if (item == null) null else ByteBuffer.wrap(item.asInstanceOf[Array[Byte]])
+      case ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType | StringType | BooleanType => identity
 
       case _: DecimalType =>
         (item: Any) => if (item == null) null else item.toString
