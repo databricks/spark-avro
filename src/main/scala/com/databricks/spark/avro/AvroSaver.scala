@@ -93,8 +93,12 @@ object AvroSaver {
       structName: String,
       recordNamespace: String): (Any) => Any = {
     dataType match {
-      case BinaryType => (item: Any) => if (item == null) null else ByteBuffer.wrap(item.asInstanceOf[Array[Byte]])
-      case ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType | StringType | BooleanType => identity
+      case BinaryType => (item: Any) => item match {
+        case null => null
+        case bytes: Array[Byte] => ByteBuffer.wrap(bytes)
+      }
+      case ByteType | ShortType | IntegerType | LongType |
+           FloatType | DoubleType | StringType | BooleanType => identity
 
       case _: DecimalType =>
         (item: Any) => if (item == null) null else item.toString

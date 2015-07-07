@@ -31,7 +31,8 @@ object AvroReadBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    println("\n\n\nStaring benchmark test with DataFrameReader - creating DataFrame from benchmark avro files\n\n\n")
+    println("\n\n\nStaring benchmark test with DataFrameReader - " +
+      "creating DataFrame from benchmark avro files\n\n\n")
 
     val startTime2 = System.nanoTime
     TestSQLContext
@@ -41,7 +42,8 @@ object AvroReadBenchmark {
     val endTime2 = System.nanoTime
     val executionTime2 = TimeUnit.SECONDS.convert(endTime2 - startTime2, TimeUnit.NANOSECONDS)
 
-    println(s"\n\n\nFinished benchmark test with DataFrameReader - result was $executionTime2 seconds\n\n\n")
+    println(s"\n\n\nFinished benchmark test with DataFrameReader -" +
+      s" result was $executionTime2 seconds\n\n\n")
 
     TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
   }

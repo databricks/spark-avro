@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014 Databricks
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.databricks.spark.avro.avroRelation2
 
 import java.io.FileNotFoundException
@@ -39,7 +55,8 @@ class AvroRelation2(override val paths: Array[String],
                    private val parameters: Map[String, String])
                   (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging {
 
-  private final val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+  private final val IgnoreFilesWithoutExtensionProperty =
+    "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse(AvroRelation2.RECORD_NAME,
     AvroSaver.defaultParameters.get(AvroRelation2.RECORD_NAME).get)
   private val recordNamespace = parameters.getOrElse(AvroRelation2.RECORD_NAMESPACE,
@@ -61,7 +78,7 @@ class AvroRelation2(override val paths: Array[String],
     case Some(structType) => structType
     case None => SchemaConverters.toSqlType(avroSchema).dataType match {
       case s: StructType => s
-      case other => sys.error(s"Avro files must contain Records to be read, type $other not supported")
+      case other => sys.error(s"Avro files must contain Records to be read, $other not supported")
     }
   }
 
@@ -77,8 +94,8 @@ class AvroRelation2(override val paths: Array[String],
    * @since 1.4.0
    */
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
-    val builder = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, builder, recordNamespace)
+    val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
+    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
 
     sqlContext.getConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "snappy") match {
@@ -102,8 +119,9 @@ class AvroRelation2(override val paths: Array[String],
 
   /**
    * This filters out unneeded columns before converting into the internal row representation.
-   * The first record is used to get the sub-schema that contains only the requested fields, this is then used
-   * to generate the field converters and the rows that only contain `requiredColumns`
+   * The first record is used to get the sub-schema that contains only the requested fields,
+   * this is then used to generate the field converters and the rows that only
+   * contain `requiredColumns`
    */
   override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
     if (inputs.isEmpty) {
@@ -121,10 +139,12 @@ class AvroRelation2(override val paths: Array[String],
             } else {
               val first = records.next()
               val superSchema = first.getSchema // the schema of the actual record
-              val fields = superSchema.getFields // the fields that are actually required along with their converters
+              // the fields that are actually required along with their converters
+              val fields = superSchema.getFields
                   .filter(field => requiredColumns.contains(field.name))
                   .map { field =>
-                    val newField = new Field(field.name, field.schema, field.doc, field.defaultValue, field.order)
+                    val newField = new Field(field.name, field.schema, field.doc,
+                      field.defaultValue, field.order)
                     (SchemaConverters.createConverterToSQL(newField.schema), newField)
                   }
               Iterator(Row.fromSeq(fields.map(f => f._1(first.get(f._2.name))))) ++
@@ -158,7 +178,7 @@ class AvroRelation2(override val paths: Array[String],
     val fs = FileSystem.get(path.toUri, hadoopConfiguration)
 
     val statuses = fs.globStatus(path) match {
-      case null => throw new FileNotFoundException(s"The path you've provided ($location) is invalid.")
+      case null => throw new FileNotFoundException(s"The path ($location) is invalid.")
       case globStatus => globStatus.toStream.map(_.getPath).flatMap(getAllFiles(fs, _))
     }
 

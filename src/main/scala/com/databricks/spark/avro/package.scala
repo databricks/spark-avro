@@ -40,14 +40,16 @@ package object avro {
   }
 
   /**
-   * Adds a method, `avro`, to DataFrameWriter that allows you to write avro files using the DataFileWriter
+   * Adds a method, `avro`, to DataFrameWriter that allows you to write avro files using
+   * the DataFileWriter
    */
   implicit class AvroDataFrameWriter(writer: DataFrameWriter) {
     def avro: String => Unit = writer.format("com.databricks.spark.avro.avroRelation2").save
   }
 
   /**
-   * Adds a method, `avro`, to DataFrameReader that allows you to read avro files using the DataFileReader
+   * Adds a method, `avro`, to DataFrameReader that allows you to read avro files using
+   * the DataFileReader
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro.avroRelation2").load

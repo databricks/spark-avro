@@ -128,7 +128,10 @@ private object SchemaConverters {
       case STRING | ENUM => (item: Any) => if (item == null) null else item.toString
       case INT | BOOLEAN | DOUBLE | FLOAT | LONG => identity
       // Byte arrays are reused by avro, so we have to make a copy of them.
-      case FIXED => (item: Any) => if (item == null) null else item.asInstanceOf[Fixed].bytes.clone()
+      case FIXED => (item: Any) => item match {
+        case null => null
+        case fixed: Fixed => fixed.bytes().clone()
+      }
       case BYTES => (item: Any) => item match {
         case null => null
         case bytes: ByteBuffer =>
@@ -141,7 +144,9 @@ private object SchemaConverters {
         (item: Any) => item match {
           case null => null
           case record: GenericRecord =>
-            Row.fromSeq(fieldConverters.zipWithIndex.map { case (conv, index) => conv(record.get(index)) })
+            Row.fromSeq(fieldConverters.zipWithIndex.map { case (conv, index) =>
+              conv(record.get(index))
+            })
         }
       case ARRAY =>
         val elementConverter = createConverterToSQL(schema.getElementType)
