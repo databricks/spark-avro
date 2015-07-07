@@ -121,11 +121,11 @@ class AvroRelation2(override val paths: Array[String],
             } else {
               val first = records.next()
               val superSchema = first.getSchema // the schema of the actual record
-              val fields = superSchema.getFields // the fields that are actually required with their SQL converters
+              val fields = superSchema.getFields // the fields that are actually required along with their converters
                   .filter(field => requiredColumns.contains(field.name))
                   .map { field =>
                     val newField = new Field(field.name, field.schema, field.doc, field.defaultValue, field.order)
-                    (SchemaConverters.createConverterToSQL(newField.schema()), newField)
+                    (SchemaConverters.createConverterToSQL(newField.schema), newField)
                   }
               Iterator(Row.fromSeq(fields.map(f => f._1(first.get(f._2.name))))) ++
                 records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2.name)))))
@@ -159,7 +159,7 @@ class AvroRelation2(override val paths: Array[String],
 
     val statuses = fs.globStatus(path) match {
       case null => throw new FileNotFoundException(s"The path you've provided ($location) is invalid.")
-      case globStatus => globStatus.toStream.map(_.getPath).flatMap(getAllFiles(fs)(_))
+      case globStatus => globStatus.toStream.map(_.getPath).flatMap(getAllFiles(fs, _))
     }
 
     val singleFile =
@@ -176,9 +176,9 @@ class AvroRelation2(override val paths: Array[String],
     result
   }
 
-  private def getAllFiles(fs: FileSystem)(path: Path): Stream[Path] = {
+  private def getAllFiles(fs: FileSystem, path: Path): Stream[Path] = {
     if (fs.isDirectory(path)) {
-      fs.listStatus(path).toStream.map(_.getPath).flatMap(getAllFiles(fs)(_))
+      fs.listStatus(path).toStream.map(_.getPath).flatMap(getAllFiles(fs, _))
     } else {
       Stream(path)
     }
