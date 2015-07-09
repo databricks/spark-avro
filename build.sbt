@@ -49,3 +49,8 @@ pomExtra := (
   </developers>)
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+
+ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+  if (scalaBinaryVersion.value == "2.10") false
+  else false
+}
