@@ -7,13 +7,11 @@ import java.util
 
 import com.databricks.spark.avro.avroRelation2.AvroRelation2
 import org.apache.avro.Schema
-import org.apache.avro.Schema.{Type, Field, RecordSchema}
-import org.apache.avro.SchemaBuilder.FixedBuilder
+import org.apache.avro.Schema.{Type, Field}
 import org.apache.avro.file.DataFileWriter
-import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{SaveMode, SQLContext, Row}
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.test.TestSQLContext
 import org.apache.spark.sql.test.TestSQLContext._
 import org.apache.spark.sql.types._
@@ -40,16 +38,6 @@ class Avro2Suite extends FunSuite {
     }
   }
 
-  test("savemode") {
-    TestUtils.withTempDir { dir =>
-      val df = TestSQLContext.read.avro(episodesFile)
-      df.write.mode(SaveMode.Append).avro(dir.getCanonicalPath)
-      df.write.mode(SaveMode.Append).avro(dir.getCanonicalPath)
-
-      println(s"count: ${TestSQLContext.read.avro(dir.getCanonicalPath).count()}")
-    }
-  }
-
   test("Incorrect Union Type") {
     TestUtils.withTempDir { dir =>
       val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
@@ -64,8 +52,7 @@ class Avro2Suite extends FunSuite {
       val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
       dataFileWriter.create(schema, new File(s"$dir.avro"))
       val avroRec = new GenericData.Record(schema)
-      avroRec.put("field1", "this is a test")
-      //avroRec.put("fixed", null)
+      avroRec.put("field1", "Hope that was not load bearing")
       avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
@@ -82,12 +69,13 @@ class Avro2Suite extends FunSuite {
         StructField("binary", BinaryType, true),
         StructField("timestamp", TimestampType, true),
         StructField("array", ArrayType(ShortType), true),
+        StructField("map", MapType(StringType, StringType), true),
         StructField("struct", StructType(Seq(StructField("int", IntegerType, true))))))
       val rdd = sparkContext.parallelize(Seq[Row](
-        Row(null, new Timestamp(1), Array[Short](1,2,3), null),
-        Row(null, null, null, null),
-        Row(null, null, null, null),
-        Row(null, null, null, null)))
+        Row(null, new Timestamp(1), Array[Short](1,2,3), null, null),
+        Row(null, null, null, null, null),
+        Row(null, null, null, null, null),
+        Row(null, null, null, null, null)))
       val df = TestSQLContext.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
       assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)
@@ -119,7 +107,14 @@ class Avro2Suite extends FunSuite {
         StructField("byte_array", ArrayType(ByteType), true),
         StructField("short_array", ArrayType(ShortType), true),
         StructField("float_array", ArrayType(FloatType), true),
-        StructField("bool_array", ArrayType(BooleanType), true)))
+        StructField("bool_array", ArrayType(BooleanType), true),
+        StructField("long_array", ArrayType(LongType), true),
+        StructField("double_array", ArrayType(DoubleType), true),
+        StructField("decimal_array", ArrayType(DecimalType(5, 5)), true),
+        StructField("bin_array", ArrayType(BinaryType), true),
+        StructField("timestamp_array", ArrayType(TimestampType), true),
+        StructField("array_array", ArrayType(ArrayType(StringType), true), true),
+        StructField("struct_array", ArrayType(StructType(Seq(StructField("name", StringType, true)))))))
 
       val arrayOfByte = new Array[Byte](4)
       for (i <- arrayOfByte.indices) {
@@ -127,11 +122,12 @@ class Avro2Suite extends FunSuite {
       }
 
       val rdd = sparkContext.parallelize(Seq(
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false))))
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f),
+          Array[Boolean](true, false, true, false), Array[Long](1L, 2L), Array[Double](1.0, 2.0),
+          Array[BigDecimal](BigDecimal.valueOf(3)), Array[Array[Byte]](arrayOfByte, arrayOfByte),
+          Array[Timestamp](new Timestamp(0)),
+          Array[Array[String]](Array[String]("CSH, tearing down the walls that divide us", "-jd")),
+          Array[Row](Row("Bobby G. can't swim")))))
       val df = TestSQLContext.createDataFrame(rdd, testSchema)
       df.write.avro(dir.toString)
       assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)

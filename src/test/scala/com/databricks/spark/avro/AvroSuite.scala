@@ -468,4 +468,20 @@ class AvroSuite extends FunSuite {
       assert(TestSQLContext.avroFile(dir.toString).count == rdd.count)
     }
   }
+
+  test("savemode") {
+    TestUtils.withTempDir { dir =>
+      val df = TestSQLContext.load(episodesFile, "com.databricks.spark.avro")
+      df.saveAsAvroFile(dir.toString)
+      intercept[RuntimeException] {
+        df.save(dir.toString, "com.databricks.spark.avro", SaveMode.Append)
+      }
+      intercept[RuntimeException] {
+        df.save(dir.toString, "com.databricks.spark.avro", SaveMode.ErrorIfExists)
+      }
+      df.save(dir.toString, "com.databricks.spark.avro", SaveMode.Overwrite)
+      df.save(dir.toString, "com.databricks.spark.avro", SaveMode.Ignore)
+    }
+  }
+
 }
