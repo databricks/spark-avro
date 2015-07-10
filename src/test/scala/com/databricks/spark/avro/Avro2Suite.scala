@@ -3,8 +3,10 @@ package com.databricks.spark.avro
 import java.io.File
 import java.sql.Timestamp
 
+import com.databricks.spark.avro.avroRelation2.AvroRelation2
 import com.google.common.io.Files
-import org.apache.spark.sql.Row
+import org.apache.commons.io.FileUtils
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.test.TestSQLContext
 import org.apache.spark.sql.test.TestSQLContext._
 import org.apache.spark.sql.types._
@@ -15,9 +17,54 @@ import scala.collection.JavaConversions._
 class Avro2Suite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
-  // A collection of random generated paritioned files from test.avro's schema
-  //   11 partitions in total, 3 records per parititon, and the size of records vary.
-  val testRandomPartitionedFiles = "src/test/resources/test-random-partitioned"
+
+
+  test("convert formats") {
+    TestUtils.withTempDir { dir =>
+      val df = TestSQLContext.read.avro(episodesFile)
+      df.write.parquet(dir.getCanonicalPath)
+      assert(TestSQLContext.read.parquet(dir.getCanonicalPath).count() === df.count)
+    }
+  }
+
+  test("rearrange internal schema") {
+    TestUtils.withTempDir { dir =>
+      val df = TestSQLContext.read.avro(episodesFile)
+      df.select("doctor", "title").write.avro(dir.getCanonicalPath)
+    }
+  }
+
+  test("write with compression") {
+    val tempDir = Files.createTempDir()
+    val uncompressDir = s"$tempDir/uncompress"
+    val deflateDir = s"$tempDir/deflate"
+    val snappyDir = s"$tempDir/snappy"
+
+    val df = TestSQLContext.read.avro(testFile)
+    TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "uncompressed")
+    df.write.avro(uncompressDir)
+    TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "deflate")
+    TestSQLContext.setConf(AvroRelation2.AVRO_DEFLATE_LEVEL, "9")
+    df.write.avro(deflateDir)
+    TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "snappy")
+    df.write.avro(snappyDir)
+
+    val uncompressSize = FileUtils.sizeOfDirectory(new File(uncompressDir))
+    val deflateSize = FileUtils.sizeOfDirectory(new File(deflateDir))
+    val snappySize = FileUtils.sizeOfDirectory(new File(snappyDir))
+
+    assert(uncompressSize > deflateSize)
+    assert(snappySize > deflateSize)
+
+
+    intercept[RuntimeException] {
+      val con = new SQLContext(TestSQLContext.sparkContext)
+      con.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "fake compression")
+      con.read.avro(testFile).write.avro(s"$tempDir/fake")
+    }
+
+    TestUtils.deleteRecursively(tempDir)
+  }
 
   test("dsl test") {
     val results = TestSQLContext.read.avro(episodesFile).select("title").collect()
@@ -158,6 +205,12 @@ class Avro2Suite extends FunSuite {
   }
 
   test("reading from invalid path throws exception") {
+
+    // Directory given has no avro files
+    intercept[RuntimeException] {
+      TestUtils.withTempDir(dir => TestSQLContext.read.avro(dir.getCanonicalPath))
+    }
+
     intercept[RuntimeException] {
       TestSQLContext.read.avro("very/invalid/path/123.avro")
     }
@@ -171,7 +224,7 @@ class Avro2Suite extends FunSuite {
 
   test("SQL test insert overwrite") {
     val tempDir = Files.createTempDir()
-    val tempEmptyDir = s"$tempDir/empty"
+    val tempEmptyDir = s"$tempDir/sqlOverwrite"
     // Create a temp directory for table that will be overwritten
     new File(tempEmptyDir).mkdirs()
     sql(
@@ -212,4 +265,6 @@ class Avro2Suite extends FunSuite {
     assert(newDf.count == 8)
     TestUtils.deleteRecursively(tempDir)
   }
+
+
 }

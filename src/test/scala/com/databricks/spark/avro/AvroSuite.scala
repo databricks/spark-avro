@@ -76,6 +76,12 @@ private[avro] object TestUtils {
     }
   }
 
+  def withTempDir(f: File => Unit): Unit = {
+    val dir = Files.createTempDir()
+    dir.delete()
+    try f(dir) finally deleteRecursively(dir)
+  }
+
   /**
    * This function deletes a file or a directory with everything that's in it. This function is
    * copied from Spark with minor modifications made to it. See original source at:
@@ -404,7 +410,7 @@ class AvroSuite extends FunSuite {
   test("SQL test insert overwrite") {
     val tempEmptyDir = "target/test/empty/"
     // Create a temp directory for table that will be overwritten
-    TestUtils.deleteRecursively(new File(tempEmptyDir))
+    TestUtils.deleteRecursively(new File("target/test"))
     new File(tempEmptyDir).mkdirs()
     sql(
       s"""

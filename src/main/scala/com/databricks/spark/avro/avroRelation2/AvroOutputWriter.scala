@@ -36,25 +36,8 @@ private[avro] class AvroOutputWriter(path: String,
 
   private lazy val converter = AvroSaver.createConverter(schema, recordName, recordNamespace)
 
-  private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] = {
-
-    new AvroKeyOutputFormat[GenericRecord]() {
-      // Here we override `getDefaultWorkFile` for two reasons:
-      //
-      //  1. To allow appending.  We need to generate unique output file names to avoid
-      //     overwriting existing files (either exist before the write job, or are just written
-      //     by other tasks within the same write job).
-      //
-      //  2. To allow dynamic partitioning.  Default `getDefaultWorkFile` uses
-      //     `FileOutputCommitter.getWorkPath()`, which points to the base directory of all
-      //     partitions in the case of dynamic partitioning.
-      override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
-        val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
-        val split = context.getTaskAttemptID.getTaskID.getId
-        new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
-      }
-    }.getRecordWriter(context)
-  }
+  private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
+    new AvroKeyOutputFormat[GenericRecord]().getRecordWriter(context)
 
   override def write(row: Row): Unit = {
     val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])

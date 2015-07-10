@@ -22,15 +22,14 @@ import java.util.zip.Deflater
 import com.databricks.spark.avro.{AvroSaver, SchemaConverters}
 import com.google.common.base.Objects
 import org.apache.avro.Schema.Field
-import org.apache.avro.file.{DataFileReader, FileReader}
+import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
-import org.apache.avro.mapreduce.AvroJob
+import org.apache.avro.mapreduce.{AvroSequenceFileOutputFormat, AvroKeyOutputFormat, AvroJob}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
-import org.apache.hadoop.io.compress.{DeflateCodec, SnappyCodec}
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 import org.apache.hadoop.mapreduce.Job
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
 import org.apache.spark.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -63,9 +62,23 @@ class AvroRelation2(override val paths: Array[String],
     AvroSaver.defaultParameters.get(AvroRelation2.RECORD_NAMESPACE).get)
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
-  private lazy val avroSchema: Schema = paths match {
-    case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() => sys.error("no file paths given")
+  private val avroSchema: () => Schema = {
+    var schema: Option[Schema] = None
+
+    def apply(): Schema = {
+      schema match {
+        case None => paths match {
+          case Array(head, _*) =>
+            val result = newReader(head)(_.getSchema)
+            schema = Some(result)
+            result
+          case Array() => sys.error("no file paths given")
+        }
+        case Some(s) => Some(s)
+      }
+      schema.get
+    }
+    apply
   }
 
   /**
@@ -74,13 +87,15 @@ class AvroRelation2(override val paths: Array[String],
    *
    * @since 1.4.0
    */
-  override lazy val dataSchema: StructType = maybeDataSchema match {
+  override def dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema).dataType match {
-      case s: StructType => s
-      case other => sys.error(s"Avro files must contain Records to be read, $other not supported")
-    }
+    case None => SchemaConverters.toSqlType(avroSchema()).dataType match {
+        case s: StructType => s
+        case other => sys.error(s"Avro files must contain Records to be read, $other not supported")
+      }
+
   }
+
 
   /**
    * Prepares a write job and returns an [[OutputWriterFactory]].  Client side job preparation can
@@ -97,23 +112,26 @@ class AvroRelation2(override val paths: Array[String],
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
+    val compressKey = "mapred.output.compress"
 
     sqlContext.getConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "snappy") match {
       case "uncompressed" =>
         logInfo("writing Avro out uncompressed")
-        FileOutputFormat.setCompressOutput(job, false)
+        job.getConfiguration.setBoolean(compressKey, false)
       case "snappy" =>
         logInfo("using snappy for Avro output")
-        FileOutputFormat.setOutputCompressorClass(job, classOf[SnappyCodec])
+        job.getConfiguration.setBoolean(compressKey, true)
+        job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.SNAPPY_CODEC)
       case "deflate" =>
-        val deflateLevel = sqlContext.getConf(AvroRelation2.AVRO_DEFLATE_LEVEL,
-                                              Deflater.DEFAULT_COMPRESSION.toString).toInt
+        val deflateLevel = sqlContext.getConf(
+          AvroRelation2.AVRO_DEFLATE_LEVEL, Deflater.DEFAULT_COMPRESSION.toString).toInt
         logInfo(s"using deflate: $deflateLevel for Avro output")
-        FileOutputFormat.setOutputCompressorClass(job, classOf[DeflateCodec])
-        ContextUtil.getConfiguration(job).setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, deflateLevel)
+        job.getConfiguration.setBoolean(compressKey, true)
+        job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.DEFLATE_CODEC)
+        job.getConfiguration.setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, deflateLevel)
       case unknown: String => sys.error(s"Unknown output compression: $unknown")
     }
-    new AvroOutputWriterFactory(schema, recordName, recordNamespace)
+    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
   }
 
 
@@ -140,13 +158,14 @@ class AvroRelation2(override val paths: Array[String],
               val first = records.next()
               val superSchema = first.getSchema // the schema of the actual record
               // the fields that are actually required along with their converters
-              val fields = superSchema.getFields
-                  .filter(field => requiredColumns.contains(field.name))
-                  .map { field =>
-                    val newField = new Field(field.name, field.schema, field.doc,
-                      field.defaultValue, field.order)
+              val avroFields = superSchema.getFields
+              val fields = requiredColumns.map { column =>
+                avroFields.collectFirst {
+                  case f if f.name == column =>
+                    val newField = new Field(f.name, f.schema, f.doc,f.defaultValue, f.order)
                     (SchemaConverters.createConverterToSQL(newField.schema), newField)
-                  }
+                }.get // required to be there
+              }.toList
               Iterator(Row.fromSeq(fields.map(f => f._1(first.get(f._2.name))))) ++
                 records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2.name)))))
             }
