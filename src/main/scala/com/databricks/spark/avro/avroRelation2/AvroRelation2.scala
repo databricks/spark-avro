@@ -25,11 +25,10 @@ import org.apache.avro.Schema.Field
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
-import org.apache.avro.mapreduce.{AvroSequenceFileOutputFormat, AvroKeyOutputFormat, AvroJob}
+import org.apache.avro.mapreduce.AvroJob
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.mapreduce.Job
-import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
 import org.apache.spark.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -67,6 +66,7 @@ class AvroRelation2(override val paths: Array[String],
 
     def apply(): Schema = {
       schema match {
+        case Some(s) => s
         case None => paths match {
           case Array(head, _*) =>
             val result = newReader(head)(_.getSchema)
@@ -74,9 +74,7 @@ class AvroRelation2(override val paths: Array[String],
             result
           case Array() => sys.error("no file paths given")
         }
-        case Some(s) => Some(s)
       }
-      schema.get
     }
     apply
   }

@@ -1,11 +1,19 @@
 package com.databricks.spark.avro
 
 import java.io.File
+import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.util
 
 import com.databricks.spark.avro.avroRelation2.AvroRelation2
+import org.apache.avro.Schema
+import org.apache.avro.Schema.{Type, Field, RecordSchema}
+import org.apache.avro.SchemaBuilder.FixedBuilder
+import org.apache.avro.file.DataFileWriter
+import org.apache.avro.generic.GenericData.Fixed
+import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{SQLContext, Row}
+import org.apache.spark.sql.{SaveMode, SQLContext, Row}
 import org.apache.spark.sql.test.TestSQLContext
 import org.apache.spark.sql.test.TestSQLContext._
 import org.apache.spark.sql.types._
@@ -29,6 +37,104 @@ class Avro2Suite extends FunSuite {
     TestUtils.withTempDir { dir =>
       val df = TestSQLContext.read.avro(episodesFile)
       df.select("doctor", "title").write.avro(dir.getCanonicalPath)
+    }
+  }
+
+  test("savemode") {
+    TestUtils.withTempDir { dir =>
+      val df = TestSQLContext.read.avro(episodesFile)
+      df.write.mode(SaveMode.Append).avro(dir.getCanonicalPath)
+      df.write.mode(SaveMode.Append).avro(dir.getCanonicalPath)
+
+      println(s"count: ${TestSQLContext.read.avro(dir.getCanonicalPath).count()}")
+    }
+  }
+
+  test("Incorrect Union Type") {
+    TestUtils.withTempDir { dir =>
+      val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
+      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
+      val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
+      val fields = Seq(new Field("field1", BadUnionType, "doc", null),
+                       new Field("fixed", fixedUnionType, "doc", null),
+                       new Field("bytes", Schema.create(Type.BYTES), "doc", null))
+      val schema = Schema.createRecord("name", "docs", "namespace", false)
+      schema.setFields(fields)
+      val datumWriter = new GenericDatumWriter[GenericRecord](schema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(schema, new File(s"$dir.avro"))
+      val avroRec = new GenericData.Record(schema)
+      avroRec.put("field1", "this is a test")
+      //avroRec.put("fixed", null)
+      avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
+      dataFileWriter.append(avroRec)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      intercept[RuntimeException] {
+        TestSQLContext.read.avro(s"$dir.avro")
+      }
+    }
+  }
+
+  test("Lots of nulls") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("binary", BinaryType, true),
+        StructField("timestamp", TimestampType, true),
+        StructField("array", ArrayType(ShortType), true),
+        StructField("struct", StructType(Seq(StructField("int", IntegerType, true))))))
+      val rdd = sparkContext.parallelize(Seq[Row](
+        Row(null, new Timestamp(1), Array[Short](1,2,3), null),
+        Row(null, null, null, null),
+        Row(null, null, null, null),
+        Row(null, null, null, null)))
+      val df = TestSQLContext.createDataFrame(rdd, schema)
+      df.write.avro(dir.toString)
+      assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)
+    }
+  }
+
+  test("Struct field type") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("float", FloatType, true),
+        StructField("short", ShortType, true),
+        StructField("byte", ByteType, true),
+        StructField("boolean", BooleanType, true)
+      ))
+      val rdd = sparkContext.parallelize(Seq(
+        Row(1f, 1.toShort, 1.toByte, true),
+        Row(2f, 2.toShort, 2.toByte, true),
+        Row(3f, 3.toShort, 3.toByte, true)
+      ))
+      val df = TestSQLContext.createDataFrame(rdd, schema)
+      df.write.avro(dir.toString)
+      assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)
+    }
+  }
+
+  test("Array data types") {
+    TestUtils.withTempDir { dir =>
+      val testSchema = StructType(Seq(
+        StructField("byte_array", ArrayType(ByteType), true),
+        StructField("short_array", ArrayType(ShortType), true),
+        StructField("float_array", ArrayType(FloatType), true),
+        StructField("bool_array", ArrayType(BooleanType), true)))
+
+      val arrayOfByte = new Array[Byte](4)
+      for (i <- arrayOfByte.indices) {
+        arrayOfByte(i) = i.toByte
+      }
+
+      val rdd = sparkContext.parallelize(Seq(
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false)),
+        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f), Array[Boolean](true, false, true, false))))
+      val df = TestSQLContext.createDataFrame(rdd, testSchema)
+      df.write.avro(dir.toString)
+      assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)
     }
   }
 

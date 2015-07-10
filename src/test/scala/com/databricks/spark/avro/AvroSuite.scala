@@ -25,7 +25,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
 
 import com.google.common.io.Files
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.{SaveMode, DataFrame, Row}
 import org.apache.spark.sql.test._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
@@ -353,6 +353,8 @@ class AvroSuite extends FunSuite {
   }
 
   test("reading from invalid path throws exception") {
+
+
     intercept[FileNotFoundException] {
       TestSQLContext.avroFile("very/invalid/path/123.avro")
     }
@@ -449,4 +451,21 @@ class AvroSuite extends FunSuite {
     assert(newDf.count == 8)
   }
 
+  test("Lots of nulls") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("binary", BinaryType, true),
+        StructField("timestamp", TimestampType, true),
+        StructField("array", ArrayType(ShortType), true),
+        StructField("struct", StructType(Seq(StructField("int", IntegerType, true))))))
+      val rdd = sparkContext.parallelize(Seq[Row](
+        Row(null, new Timestamp(1), Array[Short](1,2,3), null),
+        Row(null, null, null, null),
+        Row(null, null, null, null),
+        Row(null, null, null, null)))
+      val df = TestSQLContext.createDataFrame(rdd, schema)
+      df.save(dir.toString, "com.databricks.spark.avro")
+      assert(TestSQLContext.avroFile(dir.toString).count == rdd.count)
+    }
+  }
 }
