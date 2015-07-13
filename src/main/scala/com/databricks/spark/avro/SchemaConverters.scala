@@ -188,6 +188,7 @@ private object SchemaConverters {
           case other =>
             sys.error(s"This mix of union types is not supported (see README): $other")
         }
+      case other => sys.error(s"invalid avro type: $other")
     }
   }
 

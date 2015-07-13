@@ -22,7 +22,7 @@ publishTo := {
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
 }
 
-pomExtra := (
+pomExtra :=
   <url>https://github.com/databricks/spark-avro</url>
   <licenses>
     <license>
@@ -46,7 +46,7 @@ pomExtra := (
       <name>Volodymyr Lyubinets</name>
       <url>https://github.com/vlyubin</url>
     </developer>
-  </developers>)
+  </developers>
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 

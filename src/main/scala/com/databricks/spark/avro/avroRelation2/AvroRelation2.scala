@@ -39,26 +39,17 @@ import parquet.hadoop.util.ContextUtil
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 
-
-object AvroRelation2 {
-  final val RECORD_NAME = "recordName"
-  final val RECORD_NAMESPACE = "recordNamespace"
-  final val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
-  final val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
-}
-
 class AvroRelation2(override val paths: Array[String],
                    private val maybeDataSchema: Option[StructType],
                    override val userDefinedPartitionColumns: Option[StructType],
                    private val parameters: Map[String, String])
                   (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging {
 
-  private final val IgnoreFilesWithoutExtensionProperty =
-    "avro.mapred.ignore.inputs.without.extension"
-  private val recordName = parameters.getOrElse(AvroRelation2.RECORD_NAME,
-    AvroSaver.defaultParameters.get(AvroRelation2.RECORD_NAME).get)
-  private val recordNamespace = parameters.getOrElse(AvroRelation2.RECORD_NAMESPACE,
-    AvroSaver.defaultParameters.get(AvroRelation2.RECORD_NAMESPACE).get)
+  private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+  private val recordName = parameters.getOrElse("recordName",
+    AvroSaver.defaultParameters.get("recordName").get)
+  private val recordNamespace = parameters.getOrElse("recordNamespace",
+    AvroSaver.defaultParameters.get("recordNamespace").get)
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private val avroSchema: () => Schema = {
@@ -87,11 +78,7 @@ class AvroRelation2(override val paths: Array[String],
    */
   override def dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema()).dataType match {
-        case s: StructType => s
-        case other => sys.error(s"Avro files must contain Records to be read, $other not supported")
-      }
-
+    case None => SchemaConverters.toSqlType(avroSchema()).dataType.asInstanceOf[StructType]
   }
 
 
@@ -110,21 +97,23 @@ class AvroRelation2(override val paths: Array[String],
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
-    val compressKey = "mapred.output.compress"
+    val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
+    val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
+    val COMPRESS_KEY = "mapred.output.compress"
 
-    sqlContext.getConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "snappy") match {
+    sqlContext.getConf(AVRO_COMPRESSION_CODEC, "snappy") match {
       case "uncompressed" =>
         logInfo("writing Avro out uncompressed")
-        job.getConfiguration.setBoolean(compressKey, false)
+        job.getConfiguration.setBoolean(COMPRESS_KEY, false)
       case "snappy" =>
         logInfo("using snappy for Avro output")
-        job.getConfiguration.setBoolean(compressKey, true)
+        job.getConfiguration.setBoolean(COMPRESS_KEY, true)
         job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.SNAPPY_CODEC)
       case "deflate" =>
         val deflateLevel = sqlContext.getConf(
-          AvroRelation2.AVRO_DEFLATE_LEVEL, Deflater.DEFAULT_COMPRESSION.toString).toInt
+          AVRO_DEFLATE_LEVEL, Deflater.DEFAULT_COMPRESSION.toString).toInt
         logInfo(s"using deflate: $deflateLevel for Avro output")
-        job.getConfiguration.setBoolean(compressKey, true)
+        job.getConfiguration.setBoolean(COMPRESS_KEY, true)
         job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.DEFLATE_CODEC)
         job.getConfiguration.setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, deflateLevel)
       case unknown: String => sys.error(s"Unknown output compression: $unknown")

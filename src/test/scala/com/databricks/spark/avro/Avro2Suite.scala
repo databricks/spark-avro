@@ -3,9 +3,7 @@ package com.databricks.spark.avro
 import java.io.File
 import java.nio.ByteBuffer
 import java.sql.Timestamp
-import java.util
 
-import com.databricks.spark.avro.avroRelation2.AvroRelation2
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Type, Field}
 import org.apache.avro.file.DataFileWriter
@@ -35,6 +33,25 @@ class Avro2Suite extends FunSuite {
     TestUtils.withTempDir { dir =>
       val df = TestSQLContext.read.avro(episodesFile)
       df.select("doctor", "title").write.avro(dir.getCanonicalPath)
+    }
+  }
+
+  test("test NULL avro type") {
+    TestUtils.withTempDir { dir =>
+      val fields = Seq(new Field("null", Schema.create(Type.NULL), "doc", null))
+      val schema = Schema.createRecord("name", "docs", "namespace", false)
+      schema.setFields(fields)
+      val datumWriter = new GenericDatumWriter[GenericRecord](schema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(schema, new File(s"$dir.avro"))
+      val avroRec = new GenericData.Record(schema)
+      avroRec.put("null", null)
+      dataFileWriter.append(avroRec)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      intercept[RuntimeException] {
+        TestSQLContext.read.avro(s"$dir.avro")
+      }
     }
   }
 
@@ -136,18 +153,20 @@ class Avro2Suite extends FunSuite {
 
   test("write with compression") {
     TestUtils.withTempDir { dir =>
+      val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
+      val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
       val uncompressDir = s"$dir/uncompress"
       val deflateDir = s"$dir/deflate"
       val snappyDir = s"$dir/snappy"
       val fakeDir = s"$dir/fake"
 
       val df = TestSQLContext.read.avro(testFile)
-      TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "uncompressed")
+      TestSQLContext.setConf(AVRO_COMPRESSION_CODEC, "uncompressed")
       df.write.avro(uncompressDir)
-      TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "deflate")
-      TestSQLContext.setConf(AvroRelation2.AVRO_DEFLATE_LEVEL, "9")
+      TestSQLContext.setConf(AVRO_COMPRESSION_CODEC, "deflate")
+      TestSQLContext.setConf(AVRO_DEFLATE_LEVEL, "9")
       df.write.avro(deflateDir)
-      TestSQLContext.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "snappy")
+      TestSQLContext.setConf(AVRO_COMPRESSION_CODEC, "snappy")
       df.write.avro(snappyDir)
 
       val uncompressSize = FileUtils.sizeOfDirectory(new File(uncompressDir))
@@ -160,7 +179,7 @@ class Avro2Suite extends FunSuite {
 
       intercept[RuntimeException] {
         val con = new SQLContext(TestSQLContext.sparkContext)
-        con.setConf(AvroRelation2.AVRO_COMPRESSION_CODEC, "fake compression")
+        con.setConf(AVRO_COMPRESSION_CODEC, "fake compression")
         con.read.avro(testFile).write.avro(fakeDir)
       }
 
