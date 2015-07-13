@@ -31,6 +31,10 @@ For example, to include it when starting the spark shell:
 $ bin/spark-shell --jars spark-avro_2.10-1.0.0.jar
 ```
 
+When using spark-avro through the `--jars` flag consider building spark-avro using sbt assembly. This will bundle all
+required dependencies into the spark-avro jar. Otherwise you must ensure that all dependencies are available on your
+cluster.
+
 For use with Spark 1.2, you can use version `0.2.0` instead.
 
 ## Features
