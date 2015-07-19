@@ -16,6 +16,8 @@ sparkComponents += "sql"
 
 spAppendScalaVersion := true
 
+spIncludeMaven := true
+
 libraryDependencies += "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api")
 
 libraryDependencies += "org.apache.avro" % "avro-mapred" % "1.7.6" % "provided" exclude("org.mortbay.jetty", "servlet-api")
