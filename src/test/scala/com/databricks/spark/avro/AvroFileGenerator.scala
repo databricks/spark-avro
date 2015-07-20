@@ -1,32 +1,25 @@
 package com.databricks.spark.avro
 
 import java.io.File
-import java.nio.ByteBuffer
 
 import scala.util.Random
 
 import org.apache.avro._
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic._
+import org.apache.commons.io.FileUtils
 
 /**
  * This object allows you to generate large avro files that can be used for speed benchmarking.
  * See README on how to use it.
  */
 object AvroFileGenerator {
-  
+
   val defaultNumberOfRecords = 1000000
   val defaultNumberOfFiles = 1
   val outputDir = "target/avroForBenchmark/"
   val schemaPath = "src/test/resources/benchmarkSchema.avsc"
   val objectSize = 100 // Maps, arrays and strings in our generated file have this size
-
-  private[avro] def generateRandomByteBuffer(rand: Random): ByteBuffer = {
-    val bb = ByteBuffer.allocate(objectSize)
-    val arrayOfBytes = new Array[Byte](objectSize)
-    rand.nextBytes(arrayOfBytes)
-    bb.put(arrayOfBytes)
-  }
 
   private[avro] def generateAvroFile(numberOfRecords: Int, fileIdx: Int) = {
     val schema = new Schema.Parser().parse(new File(schemaPath))
@@ -41,18 +34,16 @@ object AvroFileGenerator {
     innerRec.put("value_field", "Inner string")
     val rand = new Random()
 
-    var idx = 0
-    while (idx < numberOfRecords) {
+    for (idx <- 0 until numberOfRecords) {
       avroRec.put("string", rand.nextString(objectSize))
       avroRec.put("simple_map", TestUtils.generateRandomMap(rand, objectSize))
       avroRec.put("union_int_long_null", rand.nextInt())
       avroRec.put("union_float_double", rand.nextDouble())
       avroRec.put("inner_record", innerRec)
       avroRec.put("array_of_boolean", TestUtils.generateRandomArray(rand, objectSize))
-      avroRec.put("bytes", generateRandomByteBuffer(rand))
+      avroRec.put("bytes", TestUtils.generateRandomByteBuffer(rand, objectSize))
 
       dataFileWriter.append(avroRec)
-      idx += 1
     }
 
     dataFileWriter.close()
@@ -72,7 +63,7 @@ object AvroFileGenerator {
 
     println(s"Generating $numberOfFiles avro files with $numberOfRecords records each")
 
-    TestUtils.deleteRecursively(new File(outputDir))
+    FileUtils.deleteDirectory(new File(outputDir))
     new File(outputDir).mkdirs() // Create directory for output files
 
     for (fileIdx <- 0 until numberOfFiles) {

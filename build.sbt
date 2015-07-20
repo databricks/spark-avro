@@ -50,7 +50,11 @@ pomExtra := (
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 
+libraryDependencies += "commons-io" % "commons-io" % "2.4" % "test"
+
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
   else false
 }
+
+EclipseKeys.eclipseOutput := Some("target/eclipse")
