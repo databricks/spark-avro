@@ -18,17 +18,16 @@ package com.databricks.spark.avro
 import java.nio.ByteBuffer
 import java.util.HashMap
 
-import org.apache.avro.generic.GenericData.Fixed
-import org.apache.avro.generic.{GenericData, GenericRecord}
-import org.apache.spark.sql.Row
-
 import scala.collection.JavaConversions._
 
+import org.apache.avro.generic.GenericData.Fixed
+import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
-
-import org.apache.spark.sql.types._
 import org.apache.avro.Schema.Type._
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
+
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -87,11 +86,11 @@ private object SchemaConverters {
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
-          case other =>
-            sys.error(s"This mix of union types is not supported (see README): $other")
+          case other => throw new SchemaConversionException(
+            s"This mix of union types is not supported (see README): $other")
         }
 
-      case other => sys.error(s"Unsupported type $other")
+      case other => throw new SchemaConversionException(s"Unsupported type $other")
     }
   }
 
@@ -119,7 +118,7 @@ private object SchemaConverters {
   }
 
   /**
-   * This function constructs a converter function that will be used to convert avro types to their
+   * Returns a function that is used to convert avro types to their
    * corresponding sparkSQL representations.
    */
   private[avro] def createConverterToSQL(schema: Schema): Any => Any = {
@@ -128,37 +127,46 @@ private object SchemaConverters {
       case STRING | ENUM => (item: Any) => if (item == null) null else item.toString
       case INT | BOOLEAN | DOUBLE | FLOAT | LONG => identity
       // Byte arrays are reused by avro, so we have to make a copy of them.
-      case FIXED => (item: Any) => item match {
-        case null => null
-        case fixed: Fixed => fixed.bytes().clone()
+      case FIXED => (item: Any) => if (item == null) {
+        null
+      } else {
+        item.asInstanceOf[Fixed].bytes().clone()
       }
-      case BYTES => (item: Any) => item match {
-        case null => null
-        case bytes: ByteBuffer =>
-          val javaBytes = new Array[Byte](bytes.remaining)
-          bytes.get(javaBytes)
-          javaBytes
+      case BYTES => (item: Any) => if (item == null) {
+        null
+      } else {
+        val bytes = item.asInstanceOf[ByteBuffer]
+        val javaBytes = new Array[Byte](bytes.remaining)
+        bytes.get(javaBytes)
+        javaBytes
       }
       case RECORD =>
         val fieldConverters = schema.getFields.map(f => createConverterToSQL(f.schema))
-        (item: Any) => item match {
-          case null => null
-          case record: GenericRecord =>
-            Row.fromSeq(fieldConverters.zipWithIndex.map { case (conv, index) =>
-              conv(record.get(index))
-            })
+        (item: Any) => if (item == null) {
+          null
+        } else {
+          val record = item.asInstanceOf[GenericRecord]
+          val converted = new Array[Any](fieldConverters.size)
+          var idx = 0
+          while (idx < fieldConverters.size) {
+            converted(idx) = fieldConverters.apply(idx)(record.get(idx))
+            idx += 1
+          }
+          Row.fromSeq(converted.toSeq)
         }
       case ARRAY =>
         val elementConverter = createConverterToSQL(schema.getElementType)
-        (item: Any) => item match {
-          case null => null
-          case array: GenericData.Array[Any] => array.map(elementConverter)
+        (item: Any) => if (item == null) {
+          null
+        } else {
+          item.asInstanceOf[GenericData.Array[Any]].map(elementConverter)
         }
       case MAP =>
         val valueConverter = createConverterToSQL(schema.getValueType)
-        (item: Any) => item match {
-          case null => null
-          case map: HashMap[Any, Any] => map.map(x => (x._1.toString, valueConverter(x._2))).toMap
+        (item: Any) => if (item == null) {
+          null
+        } else {
+          item.asInstanceOf[HashMap[Any, Any]].map(x => (x._1.toString, valueConverter(x._2))).toMap
         }
       case UNION =>
         if (schema.getTypes.exists(_.getType == NULL)) {
@@ -185,10 +193,10 @@ private object SchemaConverters {
                 case null => null
               }
             }
-          case other =>
-            sys.error(s"This mix of union types is not supported (see README): $other")
+          case other => throw new SchemaConversionException(
+            s"This mix of union types is not supported (see README): $other")
         }
-      case other => sys.error(s"invalid avro type: $other")
+      case other => throw new SchemaConversionException(s"invalid avro type: $other")
     }
   }
 

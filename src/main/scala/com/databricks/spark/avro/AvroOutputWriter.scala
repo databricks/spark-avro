@@ -13,82 +13,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
-import scala.collection.immutable.Map
-
-import org.apache.spark.sql._
+import org.apache.avro.generic.GenericData.Record
+import org.apache.avro.{Schema, SchemaBuilder}
+import org.apache.avro.generic.GenericRecord
+import org.apache.avro.mapred.AvroKey
+import org.apache.avro.mapreduce.AvroKeyOutputFormat
+import org.apache.hadoop.io.NullWritable
+import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext}
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.sources.OutputWriter
 import org.apache.spark.sql.types._
 
-import org.apache.avro.generic.GenericData.Record
-import org.apache.avro.generic.GenericRecord
-import org.apache.avro.mapred._
-import org.apache.avro.{SchemaBuilder, Schema}
+import scala.collection.immutable.Map
 
-import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapred.JobConf
+// NOTE: This class is instantiated and used on executor side only, no need to be serializable.
+private[avro] class AvroOutputWriter(path: String,
+    context: TaskAttemptContext,
+    schema: StructType,
+    recordName: String,
+    recordNamespace: String) extends OutputWriter  {
 
+  private lazy val converter = createConverter(schema, recordName, recordNamespace)
 
-/** 
- * This object provides a save() method that is used to save DataFrame as avro file.
- * To do this, we first convert the schema and then convert each row of the RDD to corresponding
- * avro types. One remark worth mentioning is the structName parameter that functions have. Avro
- * records have a name associated with them, which must be unique. Since SturctType in sparkSQL
- * doesn't have a name associated with it, we are taking the name of the last structure field that
- * the current structure is a child of. For example if the row at the top level had a field called
- * "X", which happens to be a structure, we would call that structure "X". When we process original
- * rows, you can give them a name and namespace by passing in a parameters map that gives the name
- * and namespace. For example parameters = Map("recordName" -> "MyRecordName", "recordNamespace"
- * -> "com.mycompany.records"). If no parameters are passed in the original rows get a name
- * "topLevelRecord".
- */
-object AvroSaver {
+  private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
+    new AvroKeyOutputFormat[GenericRecord]().getRecordWriter(context)
 
-  val defaultParameters = Map("recordName" -> "topLevelRecord", "recordNamespace" -> "")
-
-  def save(
-      dataFrame: DataFrame,
-      location: String,
-      parameters: Map[String, String] = defaultParameters): Unit = {
-    val recordName = parameters.getOrElse(
-      "recordName",
-      defaultParameters.get("recordName").get)
-    val recordNamespace = parameters.getOrElse(
-      "recordNamespace",
-      defaultParameters.get("recordNamespace").get)
-
-    val jobConf = new JobConf(dataFrame.sqlContext.sparkContext.hadoopConfiguration)
-    val builder = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val schema = dataFrame.schema
-    val avroSchema = SchemaConverters.convertStructToAvro(schema, builder, recordNamespace)
-    AvroJob.setOutputSchema(jobConf, avroSchema)
-
-    dataFrame.mapPartitions(rowsToAvro(_, schema, recordName, recordNamespace))
-      .saveAsHadoopFile(location,
-        classOf[AvroWrapper[GenericRecord]],
-        classOf[NullWritable],
-        classOf[AvroOutputFormat[GenericRecord]],
-        jobConf)
+  override def write(row: Row): Unit = {
+    val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])
+    println(converter(row))
+    recordWriter.write(key, NullWritable.get())
   }
 
-  private def rowsToAvro(
-      rows: Iterator[Row],
-      schema: StructType,
-      recordName: String,
-      recordNamespace: String): Iterator[(AvroKey[GenericRecord], NullWritable)] = {
-    val converter = createConverter(schema, recordName, recordNamespace )
-    rows.map(x => (new AvroKey(converter(x).asInstanceOf[GenericRecord]), NullWritable.get()))
-  }
+  override def close(): Unit = recordWriter.close(context)
 
   /**
    * This function constructs converter function for a given sparkSQL datatype. These functions
    * will be used to convert dataFrame to avro format.
    */
-  def createConverter(
+  private def createConverter(
       dataType: DataType,
       structName: String,
       recordNamespace: String): (Any) => Any = {

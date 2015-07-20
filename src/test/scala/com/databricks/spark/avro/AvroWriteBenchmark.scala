@@ -58,32 +58,12 @@ object AvroWriteBenchmark {
 
     val startTime = System.nanoTime
 
-    AvroSaver.save(testDataFrame, avroDir)
+    testDataFrame.write.avro(avroDir)
 
     val endTime = System.nanoTime
     val executionTime = TimeUnit.SECONDS.convert(endTime - startTime, TimeUnit.NANOSECONDS)
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
-
-    TestUtils.deleteRecursively(tempDir)
-
-    println(s"\n\n\nPreparing for a benchmark test - creating a RDD with $numberOfRows rows\n\n\n")
-    val tempDir2 = Files.createTempDir()
-    val avroDir2 = tempDir2 + "/avro"
-    val testDataFrame2 = TestSQLContext.applySchema(createLargeRDD(numberOfRows), testSchema)
-
-    println("\n\n\n" +
-      "Staring benchmark test with DataFrameWriter - writing a DataFrame as avro file\n\n\n")
-
-    val startTime2 = System.nanoTime
-
-    testDataFrame2.write.avro(avroDir2)
-
-    val endTime2 = System.nanoTime
-    val executionTime2 = TimeUnit.SECONDS.convert(endTime2 - startTime2, TimeUnit.NANOSECONDS)
-
-    println("\n\n\n" +
-      s"Finished benchmark test with DataFrameWriter - result was $executionTime2 seconds\n\n\n")
 
     TestUtils.deleteRecursively(tempDir)
 

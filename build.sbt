@@ -6,11 +6,14 @@ organization := "com.databricks"
 
 scalaVersion := "2.10.4"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.4.0"
+sparkVersion := "1.4.0"
 
-libraryDependencies += "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api")
+sparkComponents := Seq("sql")
 
-libraryDependencies += "org.apache.avro" % "avro-mapred" % "1.7.6"  classifier "hadoop2"  exclude("org.mortbay.jetty", "servlet-api")
+libraryDependencies ++= Seq(
+  "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
+  "org.apache.avro" % "avro-mapred" % "1.7.6"  classifier "hadoop2"  exclude("org.mortbay.jetty", "servlet-api"),
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test")
 
 publishMavenStyle := true
 
@@ -48,7 +51,7 @@ pomExtra :=
     </developer>
   </developers>
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+
 
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
