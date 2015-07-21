@@ -4,85 +4,45 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 
-import org.apache.avro.Schema
-import org.apache.avro.Schema.{Type, Field}
-import org.apache.avro.file.DataFileWriter
-import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
+import scala.collection.mutable.ArrayBuffer
+
+import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.test.TestSQLContext
-import org.apache.spark.sql.test.TestSQLContext._
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.test._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
+import org.scalatest.Matchers
 
-import scala.collection.JavaConversions._
+import scala.util.Random
 
-class AvroSuite extends FunSuite {
-  val episodesFile = "src/test/resources/episodes.avro"
-  val testFile = "src/test/resources/test.avro"
+/* Implicits */
+import TestSQLContext._
 
-  test("request no fields") {
-    val df = TestSQLContext.read.avro(episodesFile)
-    df.registerTempTable("avro_table")
-    assert(TestSQLContext.sql("select count(*) from avro_table").collect().head === Row(8))
-  }
+private[avro] object TestUtils extends Matchers {
 
-  test("convert formats") {
-    TestUtils.withTempDir { dir =>
-      val df = TestSQLContext.read.avro(episodesFile)
-      df.write.parquet(dir.getCanonicalPath)
-      assert(TestSQLContext.read.parquet(dir.getCanonicalPath).count() === df.count)
-    }
-  }
+  /**
+   * This function checks that all records in a file match the original
+   * record.
+   */
+  def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
 
-  test("rearrange internal schema") {
-    TestUtils.withTempDir { dir =>
-      val df = TestSQLContext.read.avro(episodesFile)
-      df.select("doctor", "title").write.avro(dir.getCanonicalPath)
-    }
-  }
-
-  test("test NULL avro type") {
-    TestUtils.withTempDir { dir =>
-      val fields = Seq(new Field("null", Schema.create(Type.NULL), "doc", null))
-      val schema = Schema.createRecord("name", "docs", "namespace", false)
-      schema.setFields(fields)
-      val datumWriter = new GenericDatumWriter[GenericRecord](schema)
-      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
-      dataFileWriter.create(schema, new File(s"$dir.avro"))
-      val avroRec = new GenericData.Record(schema)
-      avroRec.put("null", null)
-      dataFileWriter.append(avroRec)
-      dataFileWriter.flush()
-      dataFileWriter.close()
-      intercept[SchemaConversionException] {
-        TestSQLContext.read.avro(s"$dir.avro")
+    def rowToString(row: Row): Seq[String] = {
+      row.toSeq.map {
+        case null => "NULL" // HashSets can't have null in them, so we use a string instead
+        case arrayBuffer: ArrayBuffer[Any @unchecked] => arrayBuffer.toArray.mkString(" ")
+        case arrayByte: Array[Byte] => arrayByte.mkString(" ")
+        case other => other.toString
       }
     }
-  }
 
-  test("Incorrect Union Type") {
-    TestUtils.withTempDir { dir =>
-      val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
-      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
-      val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
-      val fields = Seq(new Field("field1", BadUnionType, "doc", null),
-        new Field("fixed", fixedUnionType, "doc", null),
-        new Field("bytes", Schema.create(Type.BYTES), "doc", null))
-      val schema = Schema.createRecord("name", "docs", "namespace", false)
-      schema.setFields(fields)
-      val datumWriter = new GenericDatumWriter[GenericRecord](schema)
-      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
-      dataFileWriter.create(schema, new File(s"$dir.avro"))
-      val avroRec = new GenericData.Record(schema)
-      avroRec.put("field1", "Hope that was not load bearing")
-      avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
-      dataFileWriter.append(avroRec)
-      dataFileWriter.flush()
-      dataFileWriter.close()
-      intercept[SchemaConversionException] {
-        TestSQLContext.read.avro(s"$dir.avro")
-      }
+    val originalEntries = TestSQLContext.avroFile(testFile).collect()
+    val newEntries = TestSQLContext.avroFile(avroDir).collect()
+
+    assert(originalEntries.size == newEntries.size)
+    originalEntries.zip(newEntries).zipWithIndex.foreach {
+      case ((originalEntry, newEntry), i) =>
+        assert(rowToString(originalEntry) == rowToString(newEntry), s"Failed comparing row ${i}.")
     }
   }
 
@@ -123,6 +83,17 @@ class AvroSuite extends FunSuite {
       assert(TestSQLContext.read.avro(dir.toString).count == rdd.count)
     }
   }
+
+  /**
+   * This function generates a random ByteBuffer of a given size.
+   */
+  private[avro] def generateRandomByteBuffer(rand: Random, size: Int): ByteBuffer = {
+    val bb = ByteBuffer.allocate(size)
+    val arrayOfBytes = new Array[Byte](size)
+    rand.nextBytes(arrayOfBytes)
+    bb.put(arrayOfBytes)
+  }
+}
 
   test("Array data types") {
     TestUtils.withTempDir { dir =>
@@ -242,31 +213,35 @@ class AvroSuite extends FunSuite {
   test("conversion to avro and back") {
     // Note that test.avro includes a variety of types, some of which are nullable. We expect to
     // get the same values back.
-    TestUtils.withTempDir { dir =>
-      val avroDir = s"$dir/avro"
-      TestSQLContext.read.avro(testFile).write.avro(avroDir)
-      TestUtils.checkReloadMatchesSaved(testFile, avroDir)
-    }
+
+    val tempDir = Files.createTempDir()
+    val avroDir = tempDir + "/avro"
+    AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir)
+
+    TestUtils.checkReloadMatchesSaved(testFile, avroDir)
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("conversion to avro and back with namespace") {
     // Note that test.avro includes a variety of types, some of which are nullable. We expect to
     // get the same values back.
-    TestUtils.withTempDir { tempDir =>
-      val name = "AvroTest"
-      val namespace = "com.databricks.spark.avro"
-      val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
+    val name = "AvroTest"
+    val namespace = "com.databricks.spark.avro"
+    val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
-      val avroDir = tempDir + "/namedAvro"
-      TestSQLContext.read.avro(testFile).write.options(parameters).avro(avroDir)
-      TestUtils.checkReloadMatchesSaved(testFile, avroDir)
+    val tempDir = Files.createTempDir()
+    val avroDir = tempDir + "/namedAvro"
+    AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir, parameters)
 
-      // Look at raw file and make sure has namespace info
-      val rawSaved = TestSQLContext.sparkContext.textFile(avroDir)
-      val schema = rawSaved.collect().mkString("")
-      assert(schema.contains(name))
-      assert(schema.contains(namespace))
-    }
+    TestUtils.checkReloadMatchesSaved(testFile, avroDir)
+
+    // Look at raw file and make sure has namespace info
+    val rawSaved = TestSQLContext.sparkContext.textFile(avroDir)
+    val schema = rawSaved.first()
+    assert(schema.contains(name))
+    assert(schema.contains(namespace))
+
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("converting some specific sparkSQL types to avro") {
@@ -309,6 +284,8 @@ class AvroSuite extends FunSuite {
         assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
       }
     }
+
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("support of globbed paths") {
@@ -346,42 +323,46 @@ class AvroSuite extends FunSuite {
   }
 
   test("SQL test insert overwrite") {
-    TestUtils.withTempDir { tempDir =>
-      val tempEmptyDir = s"$tempDir/sqlOverwrite"
-      // Create a temp directory for table that will be overwritten
-      new File(tempEmptyDir).mkdirs()
-      sql(
-        s"""
-           |CREATE TEMPORARY TABLE episodes
-           |USING com.databricks.spark.avro
-           |OPTIONS (path "$episodesFile")
-        """.stripMargin.replaceAll("\n", " "))
-      sql(s"""
-             |CREATE TEMPORARY TABLE episodesEmpty
-             |(name string, air_date string, doctor int)
-             |USING com.databricks.spark.avro
-             |OPTIONS (path "$tempEmptyDir")
-        """.stripMargin.replaceAll("\n", " "))
+    val tempEmptyDir = "target/test/empty/"
+    // Create a temp directory for table that will be overwritten
+    FileUtils.deleteDirectory(new File(tempEmptyDir))
+    new File(tempEmptyDir).mkdirs()
+    sql(
+      s"""
+        |CREATE TEMPORARY TABLE episodes
+        |USING com.databricks.spark.avro
+        |OPTIONS (path "$episodesFile")
+      """.stripMargin.replaceAll("\n", " "))
+    sql(s"""
+        |CREATE TEMPORARY TABLE episodesEmpty
+        |(name string, air_date string, doctor int)
+        |USING com.databricks.spark.avro
+        |OPTIONS (path "$tempEmptyDir")
+      """.stripMargin.replaceAll("\n", " "))
 
-      assert(sql("SELECT * FROM episodes").collect().length === 8)
-      assert(sql("SELECT * FROM episodesEmpty").collect().isEmpty)
+    assert(sql("SELECT * FROM episodes").collect().size === 8)
+    assert(sql("SELECT * FROM episodesEmpty").collect().isEmpty)
 
-      sql(
-        s"""
-           |INSERT OVERWRITE TABLE episodesEmpty
-           |SELECT * FROM episodes
-        """.stripMargin.replaceAll("\n", " "))
-      assert(sql("SELECT * FROM episodesEmpty").collect().length == 8)
-    }
+    sql(
+      s"""
+        |INSERT OVERWRITE TABLE episodesEmpty
+        |SELECT * FROM episodes
+      """.stripMargin.replaceAll("\n", " "))
+    assert(sql("SELECT * FROM episodesEmpty").collect().size == 8)
   }
 
   test("test save and load") {
     // Test if load works as expected
-    TestUtils.withTempDir { tempDir =>
-      val df = TestSQLContext.read.avro(episodesFile)
-      assert(df.count == 8)
+    val df = TestSQLContext.load(episodesFile, "com.databricks.spark.avro")
+    assert(df.count == 8)
 
-      val tempSaveDir = s"$tempDir/save/"
+    // Test if save works as expected
+    val tempSaveDir = "target/test/save/"
+    FileUtils.deleteDirectory(new File(tempSaveDir))
+    df.save(tempSaveDir, "com.databricks.spark.avro")
+    val newDf = TestSQLContext.load(tempSaveDir, "com.databricks.spark.avro")
+    assert(newDf.count == 8)
+  }
 
       df.write.avro(tempSaveDir)
       val newDf = TestSQLContext.read.avro(tempSaveDir)
