@@ -10,9 +10,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "1.3.0"
-
-sparkComponents += "sql"
+sparkVersion := "1.4.0"
 
 spAppendScalaVersion := true
 
@@ -71,3 +69,4 @@ ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
 }
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
+

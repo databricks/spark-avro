@@ -17,6 +17,7 @@
 package com.databricks.spark.avro
 
 import java.io.{IOException, File}
+import java.nio.ByteBuffer
 import java.util
 
 import com.google.common.io.Files
@@ -70,7 +71,7 @@ private[avro] object TestUtils {
   def withTempDir(f: File => Unit): Unit = {
     val dir = Files.createTempDir()
     dir.delete()
-    try f(dir) //finally deleteRecursively(dir)
+    try f(dir) finally deleteRecursively(dir)
   }
 
   /**
@@ -139,5 +140,15 @@ private[avro] object TestUtils {
       vec.add(rand.nextBoolean())
     }
     vec
+  }
+
+  /**
+   * This function generates a random ByteBuffer of a given size.
+   */
+  private[avro] def generateRandomByteBuffer(rand: Random, size: Int): ByteBuffer = {
+    val bb = ByteBuffer.allocate(size)
+    val arrayOfBytes = new Array[Byte](size)
+    rand.nextBytes(arrayOfBytes)
+    bb.put(arrayOfBytes)
   }
 }
