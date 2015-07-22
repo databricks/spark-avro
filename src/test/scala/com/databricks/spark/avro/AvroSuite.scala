@@ -17,38 +17,38 @@ package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
 import java.io.File
-import java.io.IOException
+import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.{ArrayList, HashMap}
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.HashSet
 
 import com.google.common.io.Files
+import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.test._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
+import org.scalatest.Matchers
 
 import scala.util.Random
 
 /* Implicits */
 import TestSQLContext._
 
-private[avro] object TestUtils {
+private[avro] object TestUtils extends Matchers {
 
   /**
    * This function checks that all records in a file match the original
    * record.
    */
-
   def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
 
-    def convertToString(elem: Any): String = {
-      elem match {
+    def rowToString(row: Row): Seq[String] = {
+      row.toSeq.map {
         case null => "NULL" // HashSets can't have null in them, so we use a string instead
-        case arrayBuf: ArrayBuffer[Any] => arrayBuf.toArray.deep.mkString(" ")
-        case arrayByte: Array[Byte] => arrayByte.deep.mkString(" ")
+        case arrayBuffer: ArrayBuffer[Any @unchecked] => arrayBuffer.toArray.mkString(" ")
+        case arrayByte: Array[Byte] => arrayByte.mkString(" ")
         case other => other.toString
       }
     }
@@ -57,68 +57,9 @@ private[avro] object TestUtils {
     val newEntries = TestSQLContext.avroFile(avroDir).collect()
 
     assert(originalEntries.size == newEntries.size)
-
-    val origEntrySet = Array.fill(originalEntries(0).size)(new HashSet[Any]())
-    for (origEntry <- originalEntries) {
-      var idx = 0
-      for (origElement <- origEntry.toSeq) {
-        origEntrySet(idx) += convertToString(origElement)
-        idx += 1
-      }
-    }
-
-    for (newEntry <- newEntries) {
-      var idx = 0
-      for (newElement <- newEntry.toSeq) {
-        assert(origEntrySet(idx).contains(convertToString(newElement)))
-        idx += 1
-      }
-    }
-  }
-
-  /**
-   * This function deletes a file or a directory with everything that's in it. This function is
-   * copied from Spark with minor modifications made to it. See original source at:
-   * github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/util/Utils.scala
-   */
-
-  def deleteRecursively(file: File) {
-    def listFilesSafely(file: File): Seq[File] = {
-      if (file.exists()) {
-        val files = file.listFiles()
-        if (files == null) {
-          throw new IOException("Failed to list files for dir: " + file)
-        }
-        files
-      } else {
-        List()
-      }
-    }
-
-    if (file != null) {
-      try {
-        if (file.isDirectory) {
-          var savedIOException: IOException = null
-          for (child <- listFilesSafely(file)) {
-            try {
-              deleteRecursively(child)
-            } catch {
-              // In case of multiple exceptions, only last one will be thrown
-              case ioe: IOException => savedIOException = ioe
-            }
-          }
-          if (savedIOException != null) {
-            throw savedIOException
-          }
-        }
-      } finally {
-        if (!file.delete()) {
-          // Delete can also fail if the file simply did not exist
-          if (file.exists()) {
-            throw new IOException("Failed to delete: " + file.getAbsolutePath)
-          }
-        }
-      }
+    originalEntries.zip(newEntries).zipWithIndex.foreach {
+      case ((originalEntry, newEntry), i) =>
+        assert(rowToString(originalEntry) == rowToString(newEntry), s"Failed comparing row ${i}.")
     }
   }
 
@@ -142,6 +83,16 @@ private[avro] object TestUtils {
       vec.add(rand.nextBoolean())
     }
     vec
+  }
+
+  /**
+   * This function generates a random ByteBuffer of a given size.
+   */
+  private[avro] def generateRandomByteBuffer(rand: Random, size: Int): ByteBuffer = {
+    val bb = ByteBuffer.allocate(size)
+    val arrayOfBytes = new Array[Byte](size)
+    rand.nextBytes(arrayOfBytes)
+    bb.put(arrayOfBytes)
   }
 }
 
@@ -253,7 +204,7 @@ class AvroSuite extends FunSuite {
     AvroSaver.save(TestSQLContext.avroFile(testFile), avroDir)
 
     TestUtils.checkReloadMatchesSaved(testFile, avroDir)
-    TestUtils.deleteRecursively(tempDir)
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("conversion to avro and back with namespace") {
@@ -275,7 +226,7 @@ class AvroSuite extends FunSuite {
     assert(schema.contains(name))
     assert(schema.contains(namespace))
 
-    TestUtils.deleteRecursively(tempDir)
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("converting some specific sparkSQL types to avro") {
@@ -331,7 +282,7 @@ class AvroSuite extends FunSuite {
       assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
     }
 
-    TestUtils.deleteRecursively(tempDir)
+    FileUtils.deleteDirectory(tempDir)
   }
 
   test("support of globbed paths") {
@@ -404,7 +355,7 @@ class AvroSuite extends FunSuite {
   test("SQL test insert overwrite") {
     val tempEmptyDir = "target/test/empty/"
     // Create a temp directory for table that will be overwritten
-    TestUtils.deleteRecursively(new File(tempEmptyDir))
+    FileUtils.deleteDirectory(new File(tempEmptyDir))
     new File(tempEmptyDir).mkdirs()
     sql(
       s"""
@@ -437,7 +388,7 @@ class AvroSuite extends FunSuite {
 
     // Test if save works as expected
     val tempSaveDir = "target/test/save/"
-    TestUtils.deleteRecursively(new File(tempSaveDir))
+    FileUtils.deleteDirectory(new File(tempSaveDir))
     df.save(tempSaveDir, "com.databricks.spark.avro")
     val newDf = TestSQLContext.load(tempSaveDir, "com.databricks.spark.avro")
     assert(newDf.count == 8)

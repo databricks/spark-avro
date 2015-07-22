@@ -6,11 +6,11 @@ import scala.collection.JavaConversions._
 import scala.util.Random
 
 import com.google.common.io.Files
+import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.test.TestSQLContext
-
 
 /**
  * This object runs a simple benchmark test to find out how long does it take to write a large
@@ -65,7 +65,7 @@ object AvroWriteBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    TestUtils.deleteRecursively(tempDir)
+    FileUtils.deleteDirectory(tempDir)
     TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

@@ -4,9 +4,19 @@ version := "1.0.0"
 
 organization := "com.databricks"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.10.5"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.3.0" % "provided"
+crossScalaVersions := Seq("2.10.5", "2.11.7")
+
+spName := "databricks/spark-avro"
+
+sparkVersion := "1.3.0"
+
+sparkComponents += "sql"
+
+spAppendScalaVersion := true
+
+spIncludeMaven := true
 
 libraryDependencies += "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api")
 
@@ -49,3 +59,12 @@ pomExtra := (
   </developers>)
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+
+libraryDependencies += "commons-io" % "commons-io" % "2.4" % "test"
+
+ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+  if (scalaBinaryVersion.value == "2.10") false
+  else false
+}
+
+EclipseKeys.eclipseOutput := Some("target/eclipse")
