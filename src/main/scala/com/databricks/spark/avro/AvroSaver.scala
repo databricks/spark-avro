@@ -159,7 +159,7 @@ object AvroSaver {
             while (convertersIterator.hasNext) {
               val converter = convertersIterator.next()
               val fieldName = fieldNamesIterator.next()
-              if(schema.getField(fieldName) != null) {
+              if (schema.getField(fieldName) != null) {
                 record.put(fieldName, converter(rowIterator.next()))
               } else {
                 rowIterator.next()
