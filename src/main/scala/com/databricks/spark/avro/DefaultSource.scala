@@ -29,4 +29,3 @@ private[avro] class DefaultSource extends HadoopFsRelationProvider {
       parameters: Map[String, String]): HadoopFsRelation =
     new AvroRelation(paths, dataSchema, partitionColumns, parameters)(sqlContext)
 }
-

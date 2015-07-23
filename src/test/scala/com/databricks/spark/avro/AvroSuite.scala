@@ -4,6 +4,8 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 
+import scala.collection.JavaConversions._
+
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Type, Field}
 import org.apache.avro.file.DataFileWriter
@@ -14,8 +16,6 @@ import org.apache.spark.sql.test.TestSQLContext
 import org.apache.spark.sql.test.TestSQLContext._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
-
-import scala.collection.JavaConversions._
 
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"

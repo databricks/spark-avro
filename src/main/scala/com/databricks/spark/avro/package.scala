@@ -34,5 +34,4 @@ package object avro {
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
   }
-
 }

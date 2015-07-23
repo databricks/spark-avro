@@ -20,12 +20,12 @@ import java.io.{IOException, File}
 import java.nio.ByteBuffer
 import java.util
 
-import com.google.common.io.Files
-import org.apache.spark.sql.test.TestSQLContext
-
 import scala.collection.immutable.HashSet
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
+
+import com.google.common.io.Files
+import org.apache.spark.sql.test.TestSQLContext
 
 private[avro] object TestUtils {
 
@@ -33,7 +33,6 @@ private[avro] object TestUtils {
    * This function checks that all records in a file match the original
    * record.
    */
-
   def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
 
     def convertToString(elem: Any): String = {

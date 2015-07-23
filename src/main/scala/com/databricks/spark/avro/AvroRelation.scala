@@ -21,9 +21,9 @@ import java.util.zip.Deflater
 
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
 
 import com.google.common.base.Objects
-import org.apache.avro.Schema.Field
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
@@ -42,7 +42,6 @@ case class NoFilesException() extends AvroRelationException("no input files give
 case class SchemaConversionException(msg: String) extends AvroRelationException(msg)
 case class NoAvroFilesException(path: String)
   extends AvroRelationException(s"Could not find .avro file with schema at $path")
-
 
 class AvroRelation(override val paths: Array[String],
     private val maybeDataSchema: Option[StructType],
@@ -70,7 +69,6 @@ class AvroRelation(override val paths: Array[String],
     case Some(structType) => structType
     case None => SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
   }
-
 
   /**
    * Prepares a write job and returns an [[OutputWriterFactory]].  Client side job preparation can
@@ -111,7 +109,6 @@ class AvroRelation(override val paths: Array[String],
     new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
   }
 
-
   /**
    * Filters out unneeded columns before converting into the internal row representation.
    * The first record is used to get the sub-schema that contains only the requested fields,
@@ -133,19 +130,22 @@ class AvroRelation(override val paths: Array[String],
             if (records.isEmpty) {
               Iterator.empty
             } else {
-              val first = records.next()
-              val superSchema = first.getSchema // the schema of the actual record
+              val firstRecord = records.next()
+              val superSchema = firstRecord.getSchema // the schema of the actual record
+
               // the fields that are actually required along with their converters
-              val avroFields = superSchema.getFields
-              val fields = requiredColumns.map { column =>
-                avroFields.collectFirst {
-                  case f if f.name == column =>
-                    val newField = new Field(f.name, f.schema, f.doc,f.defaultValue, f.order)
-                    (SchemaConverters.createConverterToSQL(newField.schema), newField)
-                }.get // required to be there
-              }.toList
-              Iterator(Row.fromSeq(fields.map(f => f._1(first.get(f._2.name))))) ++
-                records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2.name)))))
+              val avroFields = superSchema.getFields.map(f => (f.name, f)).toMap
+              // the list of field names along with their conversion function
+              val fields = new ArrayBuffer[(Any => Any, String)](requiredColumns.length)
+
+              for (column <- requiredColumns) {
+                val field = avroFields.getOrElse(column,
+                  throw new SchemaConversionException(s"could not find Avro column: $column"))
+                fields.append((SchemaConverters.createConverterToSQL(field.schema), field.name))
+              }
+
+              Iterator(Row.fromSeq(fields.map(f => f._1(firstRecord.get(f._2))))) ++
+                records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2)))))
             }
         }))
     }
@@ -208,7 +208,3 @@ class AvroRelation(override val paths: Array[String],
     }
   }
 }
-
-
-
-

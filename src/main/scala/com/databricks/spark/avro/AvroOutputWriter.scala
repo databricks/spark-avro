@@ -20,9 +20,11 @@ import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
+import scala.collection.immutable.Map
+
 import org.apache.avro.generic.GenericData.Record
-import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.generic.GenericRecord
+import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
 import org.apache.hadoop.io.NullWritable
@@ -31,8 +33,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.sources.OutputWriter
 import org.apache.spark.sql.types._
 
-import scala.collection.immutable.Map
-
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
 private[avro] class AvroOutputWriter(path: String,
     context: TaskAttemptContext,
@@ -40,24 +40,23 @@ private[avro] class AvroOutputWriter(path: String,
     recordName: String,
     recordNamespace: String) extends OutputWriter  {
 
-  private lazy val converter = createConverter(schema, recordName, recordNamespace)
+  private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
 
   private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
     new AvroKeyOutputFormat[GenericRecord]().getRecordWriter(context)
 
   override def write(row: Row): Unit = {
     val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])
-    println(converter(row))
     recordWriter.write(key, NullWritable.get())
   }
 
   override def close(): Unit = recordWriter.close(context)
 
   /**
-   * This function constructs converter function for a given sparkSQL datatype. These functions
-   * will be used to convert dataFrame to avro format.
+   * This function constructs converter function for a given sparkSQL datatype. This is used in
+   * writing Avro records out to disk
    */
-  private def createConverter(
+  private def createConverterToAvro(
       dataType: DataType,
       structName: String,
       recordNamespace: String): (Any) => Any = {
@@ -68,18 +67,11 @@ private[avro] class AvroOutputWriter(path: String,
       }
       case ByteType | ShortType | IntegerType | LongType |
            FloatType | DoubleType | StringType | BooleanType => identity
-
-      case _: DecimalType =>
-        (item: Any) => if (item == null) null else item.toString
-
-      case TimestampType =>
-        (item: Any) => {
-          if (item == null) null else item.asInstanceOf[Timestamp].getTime
-        }
-
+      case _: DecimalType => (item: Any) => if (item == null) null else item.toString
+      case TimestampType => (item: Any) =>
+        if (item == null) null else item.asInstanceOf[Timestamp].getTime
       case ArrayType(elementType, _) =>
-        val elementConverter = createConverter(elementType, structName, recordNamespace)
-
+        val elementConverter = createConverterToAvro(elementType, structName, recordNamespace)
         (item: Any) => {
           if (item == null) {
             null
@@ -88,19 +80,15 @@ private[avro] class AvroOutputWriter(path: String,
             val sourceArraySize = sourceArray.size
             val targetArray = new Array[Any](sourceArraySize)
             var idx = 0
-
             while (idx < sourceArraySize) {
               targetArray(idx) = elementConverter(sourceArray(idx))
               idx += 1
             }
-
             targetArray
           }
         }
-
       case MapType(StringType, valueType, _) =>
-        val valueConverter = createConverter(valueType, structName, recordNamespace)
-
+        val valueConverter = createConverterToAvro(valueType, structName, recordNamespace)
         (item: Any) => {
           if (item == null) {
             null
@@ -112,14 +100,12 @@ private[avro] class AvroOutputWriter(path: String,
             javaMap
           }
         }
-
       case structType: StructType =>
         val builder = SchemaBuilder.record(structName).namespace(recordNamespace)
         val schema: Schema = SchemaConverters.convertStructToAvro(
           structType, builder, recordNamespace)
         val fieldConverters = structType.fields.map(field =>
-          createConverter(field.dataType, field.name, recordNamespace))
-
+          createConverterToAvro(field.dataType, field.name, recordNamespace))
         (item: Any) => {
           if (item == null) {
             null
