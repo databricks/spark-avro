@@ -412,56 +412,7 @@ class AvroSuite extends FunSuite {
 
   test("test aliases in meta") {
     val df = TestSQLContext.load(testFile, "com.databricks.spark.avro")
-
-    for (x <- df.schema.fields) {
-      if (x.name == "string") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 2)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "string_alias1")
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(1) == "string_alias2")
-      } else if (x.name == "simple_map") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "map_alias")
-      } else if (x.name == "complex_map") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "complex_map_alias")
-      } else if (x.name == "union_string_null") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "union_string_alias")
-      } else if (x.name == "union_int_long_null") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "union_int_alias")
-      } else if (x.name == "union_float_double") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 2)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "union_float_alias1")
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(1) == "union_float_alias2")
-      } else if (x.name == "fixed3") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "fixed3_alias")
-      } else if (x.name == "enum") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "enum_alias")
-      } else if (x.name == "value_field") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "value_field_alias")
-      } else if (x.name == "array_of_boolean") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "array_of_boolean_alias")
-      } else if (x.name == "bytes") {
-        assert(x.metadata.contains(SchemaConverters.METADATA_KEY_ALIASES))
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES).size == 1)
-        assert(x.metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES)(0) == "bytes_alias")
-      }
-    }
+    df.schema("string").metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES) === Array("string_alias1", "string_alias1")
   }
   
   test("test aliases columns in data frame") {

@@ -21,7 +21,6 @@ import org.apache.avro.SchemaBuilder._
 import org.apache.spark.sql.types._
 import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.DataFrame
-import util.control.Breaks._
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -31,6 +30,7 @@ private object SchemaConverters {
 
   val METADATA_KEY_DOC = "doc";
   val METADATA_KEY_ALIASES = "aliases";
+  val METADATA_KEY_PARENT = "_parent";
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
@@ -56,7 +56,7 @@ private object SchemaConverters {
           if (f.doc != null) meta.putString(METADATA_KEY_DOC, f.doc)
           if (f.aliases() != null && f.aliases().size() > 0) {
             val aliasArray = new Array[String](f.aliases().size())
-            meta.putString("_parent", f.name)
+            meta.putString(METADATA_KEY_PARENT, f.name)
             f.aliases copyToArray(aliasArray)
             meta.putStringArray(METADATA_KEY_ALIASES, aliasArray);
           }
@@ -121,27 +121,26 @@ private object SchemaConverters {
       schemaBuilder: RecordBuilder[T],
       recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
-    structType.fields.foreach { field =>
-      breakable {
-        if (field.metadata.contains(METADATA_KEY_ALIASES) && field.metadata.contains("_parent")
-            && !field.metadata.getString("_parent").equals(field.name)) {
-          break
-        }
-        var newFieldBuilder = fieldsAssembler.name(field.name)
-        if (field.metadata contains (METADATA_KEY_DOC)) {
-          newFieldBuilder = newFieldBuilder.doc(field.metadata.getString(METADATA_KEY_DOC))
-        }
-        if (field.metadata.contains(METADATA_KEY_ALIASES)){
-          newFieldBuilder = newFieldBuilder.aliases(field.metadata.getStringArray(METADATA_KEY_ALIASES): _*)
-        }
-        val newField = newFieldBuilder.`type`()
-        if (field.nullable) {
-          convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
-            .noDefault
-        } else {
-          convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
-            .noDefault
-        }
+
+    val nonAliasStructFields = structType.fields.filterNot(field => field.metadata.contains(METADATA_KEY_ALIASES)
+        && field.metadata.contains(METADATA_KEY_PARENT)
+            && !field.metadata.getString(METADATA_KEY_PARENT).equals(field.name))
+
+    nonAliasStructFields.foreach { field =>
+      var newFieldBuilder = fieldsAssembler.name(field.name)
+      if (field.metadata contains (METADATA_KEY_DOC)) {
+        newFieldBuilder = newFieldBuilder.doc(field.metadata.getString(METADATA_KEY_DOC))
+      }
+      if (field.metadata.contains(METADATA_KEY_ALIASES)) {
+        newFieldBuilder = newFieldBuilder.aliases(field.metadata.getStringArray(METADATA_KEY_ALIASES): _*)
+      }
+      val newField = newFieldBuilder.`type`()
+      if (field.nullable) {
+        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
+          .noDefault
+      } else {
+        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
+          .noDefault
       }
     }
     fieldsAssembler.endRecord()
