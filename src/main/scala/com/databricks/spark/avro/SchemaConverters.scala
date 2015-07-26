@@ -122,7 +122,8 @@ private object SchemaConverters {
       recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
 
-    val nonAliasStructFields = structType.fields.filterNot(field => field.metadata.contains(METADATA_KEY_ALIASES)
+    val nonAliasStructFields = structType.fields.filterNot(field =>
+      field.metadata.contains(METADATA_KEY_ALIASES)
         && field.metadata.contains(METADATA_KEY_PARENT)
             && !field.metadata.getString(METADATA_KEY_PARENT).equals(field.name))
 
@@ -132,7 +133,8 @@ private object SchemaConverters {
         newFieldBuilder = newFieldBuilder.doc(field.metadata.getString(METADATA_KEY_DOC))
       }
       if (field.metadata.contains(METADATA_KEY_ALIASES)) {
-        newFieldBuilder = newFieldBuilder.aliases(field.metadata.getStringArray(METADATA_KEY_ALIASES): _*)
+        newFieldBuilder = newFieldBuilder
+          .aliases(field.metadata.getStringArray(METADATA_KEY_ALIASES): _*)
       }
       val newField = newFieldBuilder.`type`()
       if (field.nullable) {
