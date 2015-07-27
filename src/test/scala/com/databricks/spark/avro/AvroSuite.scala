@@ -322,17 +322,17 @@ class AvroSuite extends FunSuite {
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files
-    intercept[NoFilesException] {
+    intercept[AvroRelationException] {
       TestUtils.withTempDir(dir => TestSQLContext.read.avro(dir.getCanonicalPath))
     }
 
-    intercept[NoFilesException] {
+    intercept[AvroRelationException] {
       TestSQLContext.read.avro("very/invalid/path/123.avro")
     }
 
     // In case of globbed path that can't be matched to anything, another exception is thrown (and
     // exception message is helpful)
-    intercept[NoFilesException] {
+    intercept[AvroRelationException] {
       TestSQLContext.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 

@@ -38,7 +38,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
 
 abstract class AvroRelationException(msg: String) extends Exception(msg)
-case class NoFilesException() extends AvroRelationException("no input files given")
+case object NoFilesException extends AvroRelationException("no input files given")
 case class SchemaConversionException(msg: String) extends AvroRelationException(msg)
 case class NoAvroFilesException(path: String)
   extends AvroRelationException(s"Could not find .avro file with schema at $path")
@@ -57,7 +57,7 @@ private[avro] class AvroRelation(
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
     case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() => throw new NoFilesException()
+    case Array() => throw NoFilesException
   }
 
   /**
