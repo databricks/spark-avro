@@ -174,6 +174,13 @@ USING com.databricks.spark.avro
 OPTIONS (path "src/test/resources/episodes.avro")
 ```
 
+### Versions
+Spark changed how it reads / writes data in 1.4, so please use the correct version
+of this dedicated for your spark version
+
+1.3 -> 1.0.0
+
+1.4+ -> 1.1.0-SNAPSHOT
 
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),
