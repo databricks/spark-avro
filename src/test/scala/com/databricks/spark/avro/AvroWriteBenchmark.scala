@@ -58,7 +58,7 @@ object AvroWriteBenchmark {
 
     val startTime = System.nanoTime
 
-    AvroSaver.save(testDataFrame, avroDir)
+    testDataFrame.write.avro(avroDir)
 
     val endTime = System.nanoTime
     val executionTime = TimeUnit.SECONDS.convert(endTime - startTime, TimeUnit.NANOSECONDS)

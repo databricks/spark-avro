@@ -1,6 +1,6 @@
 name := "spark-avro"
 
-version := "1.0.0"
+version := "1.1.0-SNAPSHOT"
 
 organization := "com.databricks"
 
@@ -10,17 +10,18 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "1.3.0"
-
-sparkComponents += "sql"
+sparkVersion := "1.4.0"
 
 spAppendScalaVersion := true
 
 spIncludeMaven := true
 
-libraryDependencies += "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api")
+sparkComponents := Seq("sql")
 
-libraryDependencies += "org.apache.avro" % "avro-mapred" % "1.7.6" % "provided" exclude("org.mortbay.jetty", "servlet-api")
+libraryDependencies ++= Seq(
+  "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
+  "org.apache.avro" % "avro-mapred" % "1.7.6"  classifier "hadoop2"  exclude("org.mortbay.jetty", "servlet-api"),
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test")
 
 publishMavenStyle := true
 
@@ -32,7 +33,7 @@ publishTo := {
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
 }
 
-pomExtra := (
+pomExtra :=
   <url>https://github.com/databricks/spark-avro</url>
   <licenses>
     <license>
@@ -56,9 +57,9 @@ pomExtra := (
       <name>Volodymyr Lyubinets</name>
       <url>https://github.com/vlyubin</url>
     </developer>
-  </developers>)
+  </developers>
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+
 
 libraryDependencies += "commons-io" % "commons-io" % "2.4" % "test"
 
@@ -68,3 +69,4 @@ ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
 }
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
+
