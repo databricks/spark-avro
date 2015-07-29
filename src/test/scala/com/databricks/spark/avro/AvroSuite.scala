@@ -285,7 +285,7 @@ class AvroSuite extends FunSuite {
       val cityRDD = sparkContext.parallelize(Seq(
         Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
         Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
-        Row("Munich", 8, new Timestamp(42), 3.14, arrayOfByte)))
+        Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
       val cityDataFrame = TestSQLContext.createDataFrame(cityRDD, testSchema)
 
       val avroDir = tempDir + "/avro"
