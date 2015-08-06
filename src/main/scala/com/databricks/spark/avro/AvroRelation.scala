@@ -17,7 +17,10 @@
 package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
+import java.util.UUID
 import java.util.zip.Deflater
+
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat
 
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
@@ -49,6 +52,13 @@ private[avro] class AvroRelation(
     override val userDefinedPartitionColumns: Option[StructType],
     private val parameters: Map[String, String])
     (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging {
+
+  // This UUID is used to avoid output file name collision between different appending write jobs.
+  // These jobs may belong to different SparkContext instances. Concrete data source implementations
+  // may use this UUID to generate unique file names (e.g., `part-r-<task-id>-<job-uuid>.parquet`).
+  //  The reason why this ID is used to identify a job rather than a single task output file is
+  // that, speculative tasks must generate the same output file name as the original task.
+  private val uniqueWriteJobId = UUID.randomUUID().toString
 
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
@@ -89,6 +99,11 @@ private[avro] class AvroRelation(
     val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
     val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
     val COMPRESS_KEY = "mapred.output.compress"
+
+    // This UUID is sent to executor side together with the serialized `Configuration` object within
+    // the `Job` instance.  `OutputWriters` on the executor side should use this UUID to generate
+    // unique task output files.
+    job.getConfiguration.set("spark.sql.sources.writeJobUUID", uniqueWriteJobId)
 
     sqlContext.getConf(AVRO_COMPRESSION_CODEC, "snappy") match {
       case "uncompressed" =>
