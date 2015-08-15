@@ -68,7 +68,7 @@ private[avro] class AvroRelation(
    */
   override def dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema, 
+    case None => SchemaConverters.toSqlType(avroSchema,
         withAliasFields).dataType.asInstanceOf[StructType]
   }
 
