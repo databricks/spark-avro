@@ -13,250 +13,207 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.databricks.spark.avro
 
-import java.io.{IOException, FileNotFoundException}
-import java.nio.ByteBuffer
-import java.util.Map
-
+import java.io.FileNotFoundException
+import java.util.zip.Deflater
+import scala.collection.Iterator
 import scala.collection.JavaConversions._
-import scala.collection.immutable.{Map => ScalaMap}
+import scala.collection.mutable.ArrayBuffer
+import com.google.common.base.Objects
+import org.apache.avro.SchemaBuilder
+import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
+import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
+import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
+import org.apache.avro.mapreduce.AvroJob
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
+import org.apache.hadoop.mapreduce.Job
+import org.apache.spark.Logging
+import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.avro.Schema.Field
 
-import org.apache.avro.file.DataFileReader
-import org.apache.avro.generic.GenericData
-import org.apache.avro.generic.GenericData.Fixed
-import org.apache.avro.generic.{GenericRecord, GenericDatumReader}
-import org.apache.avro.mapred.FsInput
-import org.apache.avro.{SchemaBuilder, Schema}
-import org.apache.avro.Schema.Type._
+abstract class AvroRelationException(msg: String) extends Exception(msg)
+case object NoFilesException extends AvroRelationException("no input files given")
+case class SchemaConversionException(msg: String) extends AvroRelationException(msg)
+case class NoAvroFilesException(path: String)
+  extends AvroRelationException(s"Could not find .avro file with schema at $path")
 
-import org.apache.hadoop.fs.{FileSystem, Path}
+private[avro] class AvroRelation(
+    override val paths: Array[String],
+    private val maybeDataSchema: Option[StructType],
+    override val userDefinedPartitionColumns: Option[StructType],
+    private val parameters: Map[String, String])
+    (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging {
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, TableScan}
+  private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+  private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
+  private val recordNamespace = parameters.getOrElse("recordNamespace", "")
+  private val withAliasFields =  parameters.getOrElse("withAlias", "false").toBoolean
 
-
-case class AvroRelation(
-    location: String,
-    userSpecifiedSchema: Option[StructType],
-    minPartitions: Int = 0,
-    recordName: String = AvroSaver.defaultParameters.get("recordName").get,
-    recordNamespace: String = AvroSaver.defaultParameters.get("recordNamespace").get)
-                       (@transient val sqlContext: SQLContext)
-  extends BaseRelation with TableScan with InsertableRelation {
-  var avroSchema: Schema = null
-
-  val IgnoreAvroFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
-
-  override val schema: StructType = {
-    if (userSpecifiedSchema.isDefined) {
-      // We need avroSchema to construct converter
-      avroSchema = SchemaConverters.convertStructToAvro(userSpecifiedSchema.get,
-        SchemaBuilder.record(recordName).namespace(recordNamespace), recordNamespace)
-      userSpecifiedSchema.get
-    } else {
-      val fileReader = newReader()
-      try {
-        avroSchema = fileReader.getSchema
-      } finally {
-        fileReader.close()
-      }
-      val convertedSchema = SchemaConverters.toSqlType(avroSchema).dataType match {
-        case s: StructType => s
-        case other =>
-          sys.error(s"Avro files must contain Records to be read, type $other not supported")
-      }
-      convertedSchema
-    }
-  }
-
-  override def buildScan(): RDD[Row] = {
-    val minPartitionsNum = if (minPartitions <= 0) {
-      sqlContext.sparkContext.defaultMinPartitions
-    } else {
-      minPartitions
-    }
-
-    val baseRdd = sqlContext.sparkContext.hadoopFile(
-      location,
-      classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
-      classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
-      classOf[org.apache.hadoop.io.NullWritable],
-      minPartitionsNum)
-
-    val converter = createConverter(avroSchema)
-    baseRdd.map(record => converter(record._1.datum).asInstanceOf[Row])
-  }
-
-  private def getAllFiles(fs: FileSystem)(path: Path): Stream[Path] = {
-    if (fs.isDirectory(path)) {
-      fs.listStatus(path).toStream.map(_.getPath).flatMap(getAllFiles(fs)(_))
-    } else {
-      Stream(path)
-    }
-  }
-
-  private def newReader() = {
-    val path = new Path(location)
-    val hadoopConfiguration = sqlContext.sparkContext.hadoopConfiguration
-    val fs = FileSystem.get(path.toUri, hadoopConfiguration)
-    val globStatus = fs.globStatus(path)
-
-    if (globStatus == null) {
-      throw new FileNotFoundException(s"The path you've provided ($location) is invalid.")
-    }
-
-    val statuses = globStatus
-      .toStream
-      .map(_.getPath)
-      .flatMap(getAllFiles(fs)(_))
-
-    val singleFile =
-      (if(hadoopConfiguration.getBoolean(IgnoreAvroFilesWithoutExtensionProperty, true)) {
-         statuses.find(_.getName.endsWith("avro"))
-       } else {
-         statuses.headOption
-       }).getOrElse(sys.error(s"Could not find .avro file with schema at $path"))
-
-    val input = new FsInput(singleFile, hadoopConfiguration)
-    val reader = new GenericDatumReader[GenericRecord]()
-    DataFileReader.openReader(input, reader)
+  /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
+  private lazy val avroSchema = paths match {
+    case Array(head, _*) => newReader(head)(_.getSchema)
+    case Array() => throw NoFilesException
   }
 
   /**
-   * This function constructs a converter function that will be used to convert avro types to their
-   * corresponding sparkSQL representations.
+   * Specifies schema of actual data files.  For partitioned relations, if one or more partitioned
+   * columns are contained in the data files, they should also appear in `dataSchema`.
+   *
+   * @since 1.4.0
    */
-  private def createConverter(schema: Schema): (Any) => Any = {
-    schema.getType match {
-      case STRING | ENUM =>
-        // Avro strings are in Utf8, so we have to call toString on them
-        (item: Any) => if (item == null) null else item.toString
-      case INT | BOOLEAN | DOUBLE | FLOAT | LONG =>
-        (item: Any) => item
+  override def dataSchema: StructType = maybeDataSchema match {
+    case Some(structType) => structType
+    case None => SchemaConverters.toSqlType(avroSchema, 
+        withAliasFields).dataType.asInstanceOf[StructType]
+  }
 
-      case BYTES =>
-        (item: Any) => {
-          if (item == null) {
-            null
-          } else {
-            val avroBytes = item.asInstanceOf[ByteBuffer]
-            val javaBytes = new Array[Byte](avroBytes.remaining)
-            avroBytes.get(javaBytes)
-            javaBytes
-          }
-        }
+  /**
+   * Prepares a write job and returns an [[OutputWriterFactory]].  Client side job preparation can
+   * be put here.  For example, user defined output committer can be configured here
+   * by setting the output committer class in the conf of spark.sql.sources.outputCommitterClass.
+   *
+   * Note that the only side effect expected here is mutating `job` via its setters.  Especially,
+   * Spark SQL caches [[BaseRelation]] instances for performance, mutating relation internal states
+   * may cause unexpected behaviors.
+   *
+   * @since 1.4.0
+   */
+  override def prepareJobForWrite(job: Job): OutputWriterFactory = {
+    val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
+    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+    AvroJob.setOutputKeySchema(job, outputAvroSchema)
+    val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
+    val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
+    val COMPRESS_KEY = "mapred.output.compress"
 
-      case FIXED =>
-        // Byte arrays are reused by avro, so we have to make a copy of them.
-        (item: Any) => if (item == null) null else item.asInstanceOf[Fixed].bytes.clone
+    sqlContext.getConf(AVRO_COMPRESSION_CODEC, "snappy") match {
+      case "uncompressed" =>
+        logInfo("writing Avro out uncompressed")
+        job.getConfiguration.setBoolean(COMPRESS_KEY, false)
+      case "snappy" =>
+        logInfo("using snappy for Avro output")
+        job.getConfiguration.setBoolean(COMPRESS_KEY, true)
+        job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.SNAPPY_CODEC)
+      case "deflate" =>
+        val deflateLevel = sqlContext.getConf(
+          AVRO_DEFLATE_LEVEL, Deflater.DEFAULT_COMPRESSION.toString).toInt
+        logInfo(s"using deflate: $deflateLevel for Avro output")
+        job.getConfiguration.setBoolean(COMPRESS_KEY, true)
+        job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.DEFLATE_CODEC)
+        job.getConfiguration.setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, deflateLevel)
+      case unknown: String => logError(s"compression $unknown is not supported")
+    }
+    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
+  }
 
-      case RECORD =>
-        val fieldConverters = schema.getFields.map(f => createConverter(f.schema))
+  /**
+   * Filters out unneeded columns before converting into the internal row representation.
+   * The first record is used to get the sub-schema that contains only the requested fields,
+   * this is then used to generate the field converters and the rows that only
+   * contain `requiredColumns`
+   */
+  override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
+    val withalias = withAliasFields
+    if (inputs.isEmpty) {
+      sqlContext.sparkContext.emptyRDD[Row]
+    } else {
+      new UnionRDD[Row](sqlContext.sparkContext,
+      inputs.map(path =>
+        sqlContext.sparkContext.hadoopFile(
+          path.getPath.toString,
+          classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
+          classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
+          classOf[org.apache.hadoop.io.NullWritable]).keys.map(_.datum())
+          .mapPartitions { records =>
+            if (records.isEmpty) {
+              Iterator.empty
+            } else {
+              val firstRecord = records.next()
+              val superSchema = firstRecord.getSchema // the schema of the actual record
 
-        (item: Any) => {
-          if (item == null) {
-            null
-          } else {
-            val record = item.asInstanceOf[GenericRecord]
-            val converted = new Array[Any](fieldConverters.size)
-            var idx = 0
-            while (idx < fieldConverters.size) {
-              converted(idx) = fieldConverters.apply(idx)(record.get(idx))
-              idx += 1
-            }
+              // the fields that are actually required along with their converters
+              var avroFields:Map[String, Field] = Map()
+              superSchema.getFields.map(f => {
+                  avroFields += (f.name -> f)
+                  if (!f.aliases().isEmpty() && withalias) {
+                    f.aliases().foreach { alias => { avroFields += (alias -> f) } }
+                  }
+                })
+              // the list of field names along with their conversion function
+              val fields = new ArrayBuffer[(Any => Any, String)](requiredColumns.length)
 
-            Row.fromSeq(converted.toSeq)
-          }
-        }
-
-      case ARRAY =>
-        val elementConverter = createConverter(schema.getElementType)
-
-        (item: Any) => {
-          if (item == null) {
-            null
-          } else {
-            val avroArray = item.asInstanceOf[GenericData.Array[Any]]
-            val convertedArray = new Array[Any](avroArray.size)
-            var idx = 0
-            while (idx < avroArray.size) {
-              convertedArray(idx) = elementConverter(avroArray(idx))
-              idx += 1
-            }
-            convertedArray.toSeq
-          }
-        }
-
-      case MAP =>
-        val valueConverter = createConverter(schema.getValueType)
-
-        (item: Any) => {
-          if (item == null) {
-            null
-          } else {
-            // Avro map keys are always strings, so it's enough to just call toString on them.
-            item.asInstanceOf[Map[Any, Any]].map(x => (x._1.toString, valueConverter(x._2))).toMap
-          }
-        }
-
-      case UNION =>
-        if (schema.getTypes.exists(_.getType == NULL)) {
-          val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
-          if (remainingUnionTypes.size == 1) {
-            createConverter(remainingUnionTypes.get(0))
-          } else {
-            createConverter(Schema.createUnion(remainingUnionTypes))
-          }
-        } else schema.getTypes.map(_.getType) match {
-          case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
-            (item: Any) => {
-              item match {
-                case l: Long => l
-                case i: Int => i.toLong
-                case null => null
+              for (column <- requiredColumns) {
+                val field = avroFields.getOrElse(column,
+                  throw new SchemaConversionException(s"could not find Avro column: $column"))
+                fields.append((SchemaConverters.createConverterToSQL(field.schema), field.name))
               }
-            }
-          case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
-            (item: Any) => {
-              item match {
-                case d: Double => d
-                case f: Float => f.toDouble
-                case null => null
-              }
-            }
-          case other =>
-            sys.error(s"This mix of union types is not supported (see README): $other")
-        }
 
-      case other => sys.error(s"Unsupported type $other")
+              Iterator(Row.fromSeq(fields.map(f => f._1(firstRecord.get(f._2))))) ++
+                records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2)))))
+            }
+        }))
     }
   }
 
-  // The function below was borrowed from JSONRelation
-  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
-    val filesystemPath = new Path(location)
-    val fs = filesystemPath.getFileSystem(sqlContext.sparkContext.hadoopConfiguration)
+  /**
+   * Checks to see if the given Any is the same avro relation based off of the input paths, schema,
+   * and partitions
+   */
+  override def equals(other: Any): Boolean = other match {
+    case that: AvroRelation => paths.toSet == that.paths.toSet &&
+                                dataSchema == that.dataSchema &&
+                                schema == that.schema &&
+                                partitionColumns == that.partitionColumns
+    case _ => false
+  }
 
-    if (overwrite) {
-      try {
-        fs.delete(filesystemPath, true)
-      } catch {
-        case e: IOException =>
-          throw new IOException(
-            s"Unable to clear output directory ${filesystemPath.toString} prior"
-              + s" to INSERT OVERWRITE a AVRO table:", e)
-      }
-      // Write the data.
-      data.saveAsAvroFile(
-        location,
-        ScalaMap("recordName" -> recordName, "recordNamespace" -> recordNamespace))
-      // Right now, we assume that the schema is not changed. We will not update the schema.
-      // schema = data.schema
+  /**
+   * Generates a unique has of this relation based off of its paths, schema, and partition
+   */
+  override def hashCode(): Int = Objects.hashCode(paths.toSet, dataSchema, schema, partitionColumns)
+
+  /**
+   * Opens up the location to for reading. Takes in a function to run on the schema and returns the
+   * result of this function. This takes in a function so that the caller does not have to worry
+   * about cleaning up and closing the reader.
+   * @param location the location in the filesystem to read from
+   * @param fun the function that is called on when the reader has been initialized
+   * @tparam T the return type of the function given
+   */
+  private def newReader[T](location: String)(fun: FileReader[GenericRecord] => T): T = {
+    val path = new Path(location)
+    val hadoopConfiguration = sqlContext.sparkContext.hadoopConfiguration
+    val fs = FileSystem.get(path.toUri, hadoopConfiguration)
+
+    val statuses = fs.globStatus(path) match {
+      case null => throw new FileNotFoundException(s"The path ($location) is invalid.")
+      case globStatus => globStatus.toStream.map(_.getPath).flatMap(getAllFiles(fs, _))
+    }
+
+    val singleFile =
+      (if (hadoopConfiguration.getBoolean(IgnoreFilesWithoutExtensionProperty, true)) {
+        statuses.find(_.getName.endsWith("avro"))
+      } else {
+        statuses.headOption
+      }).getOrElse(throw new NoAvroFilesException(path.toString))
+
+    val reader = DataFileReader.openReader(new FsInput(singleFile, hadoopConfiguration),
+      new GenericDatumReader[GenericRecord]())
+    val result = fun(reader)
+    reader.close()
+    result
+  }
+
+  private def getAllFiles(fs: FileSystem, path: Path): Stream[Path] = {
+    if (fs.isDirectory(path)) {
+      fs.listStatus(path).toStream.map(_.getPath).flatMap(getAllFiles(fs, _))
     } else {
-      sys.error("AVRO tables only support INSERT OVERWRITE for now.")
+      Stream(path)
     }
   }
 }

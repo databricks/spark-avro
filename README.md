@@ -69,8 +69,6 @@ As for unions, we only support three kinds of unions:
 3) union(something, null), where something is one of the avro types mentioned above, including
 two types of unions.
 
-At the moment we ignore docs, aliases and other properties present in the avro file.
-
 ## Supported types for SparkSQL -> Avro conversion
 
 Every SparkSQL type is supported. For most of them the corresponding type is obvious
@@ -135,6 +133,10 @@ Alias will be available in `aliases` of avro schema.
 ```scala
 scala>val dfWithAlias = df.addAvroAliasColumns()
 ```
+In Spark SQL, loading avro with alias columns use:
+```
+create table mytable using com.databricks.spark.avro OPTIONS(path "test.avro", withAlias "true");
+```
 
 You can also specifiy the the record name and namespace with optional parameters:
 ```scala
@@ -182,6 +184,13 @@ USING com.databricks.spark.avro
 OPTIONS (path "src/test/resources/episodes.avro")
 ```
 
+### Versions
+Spark changed how it reads / writes data in 1.4, so please use the correct version
+of this dedicated for your spark version
+
+1.3 -> 1.0.0
+
+1.4+ -> 1.1.0-SNAPSHOT
 
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),

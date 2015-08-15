@@ -20,11 +20,15 @@ object AvroReadBenchmark {
         "is empty. First you should generate some files to run a benchmark with (see README)")
     }
 
-    println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
+    TestSQLContext.read.avro(AvroFileGenerator.outputDir).count()
+
+   println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
 
     val startTime = System.nanoTime
     TestSQLContext
-      .avroFile(AvroFileGenerator.outputDir)
+      .read
+      .avro(AvroFileGenerator.outputDir)
+      .select("string")
       .count()
     val endTime = System.nanoTime
     val executionTime = TimeUnit.SECONDS.convert(endTime - startTime, TimeUnit.NANOSECONDS)
