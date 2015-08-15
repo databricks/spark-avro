@@ -70,7 +70,8 @@ private object SchemaConverters {
             meta.putStringArray(METADATA_KEY_ALIASES, aliasArray);
             if (schemaWithAlias) {
               for (aliasFieldName <- aliasArray) {
-                aliasFields += StructField(aliasFieldName, schemaType.dataType, schemaType.nullable, meta.build())
+                aliasFields += StructField(aliasFieldName, schemaType.dataType,
+                  schemaType.nullable, meta.build())
               }
             }
           }
