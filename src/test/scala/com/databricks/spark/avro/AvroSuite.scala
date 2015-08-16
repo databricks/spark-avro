@@ -3,9 +3,7 @@ package com.databricks.spark.avro
 import java.io.File
 import java.nio.ByteBuffer
 import java.sql.Timestamp
-
 import scala.collection.JavaConversions._
-
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Type, Field}
 import org.apache.avro.file.DataFileWriter
@@ -16,6 +14,7 @@ import org.apache.spark.sql.test.TestSQLContext
 import org.apache.spark.sql.test.TestSQLContext._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
+import org.apache.spark.sql.AnalysisException
 
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -25,6 +24,12 @@ class AvroSuite extends FunSuite {
     val df = TestSQLContext.read.avro(episodesFile)
     df.registerTempTable("avro_table")
     assert(TestSQLContext.sql("select count(*) from avro_table").collect().head === Row(8))
+  }
+
+  test("Check alias field in sql") {
+    val df = TestSQLContext.read.avro(testFile).addAvroAliasColumns()
+    df.registerTempTable("avro_table")
+    assert(TestSQLContext.sql("select string_alias1 from avro_table").count() === 3)
   }
 
   test("convert formats") {
@@ -237,6 +242,28 @@ class AvroSuite extends FunSuite {
       """.stripMargin.replaceAll("\n", " "))
 
     assert(sql("SELECT * FROM avroTable").collect().length === 8)
+  }
+
+  test("sql test without alias") {
+    intercept[AnalysisException] {
+      sql(
+        s"""
+         |CREATE TEMPORARY TABLE avroTable
+         |USING com.databricks.spark.avro
+         |OPTIONS (path "$testFile", withAlias "false")
+      """.stripMargin.replaceAll("\n", " "))
+      assert(sql("SELECT string_alias1 FROM avroTable").collect().length === 3)
+    }
+  }
+
+    test("sql test with alias") {
+    sql(
+      s"""
+         |CREATE TEMPORARY TABLE avroTable
+         |USING com.databricks.spark.avro
+         |OPTIONS (path "$testFile", withAlias "true")
+      """.stripMargin.replaceAll("\n", " "))
+    assert(sql("SELECT string_alias1 FROM avroTable").collect().length === 3)
   }
 
   test("conversion to avro and back") {
