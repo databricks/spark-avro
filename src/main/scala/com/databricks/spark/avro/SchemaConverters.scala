@@ -235,8 +235,8 @@ private object SchemaConverters {
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          schemaBuilder.record(recordNamespace+"."+structName),
-          recordNamespace+"."+structName)
+          schemaBuilder.record(recordNamespace + "." + structName),
+          recordNamespace + "." + structName)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }
@@ -278,8 +278,8 @@ private object SchemaConverters {
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          newFieldBuilder.record(recordNamespace+"."+structName),
-          recordNamespace+"."+structName)
+          newFieldBuilder.record(recordNamespace + "." + structName),
+          recordNamespace + "." + structName)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }
