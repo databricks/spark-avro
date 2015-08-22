@@ -23,15 +23,15 @@ class AvroSuite extends FunSuite {
   val testFile = "src/test/resources/test.avro"
 
   test("reading and writing partitioned data") {
-    TestUtils.withTempDir { dir =>
       val df = TestSQLContext.read.avro(episodesFile)
       val fields = List("title", "air_date", "doctor")
       for (field <- fields) {
-        val outputDir = s"$dir/${UUID.randomUUID}"
-        df.write.partitionBy(field).avro(outputDir)
-        val input = TestSQLContext.read.avro(outputDir)
-        // makes sure that no fields got dropped
-        assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
+        TestUtils.withTempDir { dir =>
+          val outputDir = s"$dir/${UUID.randomUUID}"
+          df.write.partitionBy(field).avro(outputDir)
+          val input = TestSQLContext.read.avro(outputDir)
+          // makes sure that no fields got dropped
+          assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
       }
     }
   }
