@@ -3,6 +3,7 @@ package com.databricks.spark.avro
 import java.io.File
 import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.util.UUID
 
 import scala.collection.JavaConversions._
 
@@ -20,6 +21,20 @@ import org.scalatest.FunSuite
 class AvroSuite extends FunSuite {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+
+  test("reading and writing partitioned data") {
+      val df = TestSQLContext.read.avro(episodesFile)
+      val fields = List("title", "air_date", "doctor")
+      for (field <- fields) {
+        TestUtils.withTempDir { dir =>
+          val outputDir = s"$dir/${UUID.randomUUID}"
+          df.write.partitionBy(field).avro(outputDir)
+          val input = TestSQLContext.read.avro(outputDir)
+          // makes sure that no fields got dropped
+          assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
+      }
+    }
+  }
 
   test("request no fields") {
     val df = TestSQLContext.read.avro(episodesFile)
@@ -285,7 +300,7 @@ class AvroSuite extends FunSuite {
       val cityRDD = sparkContext.parallelize(Seq(
         Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
         Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
-        Row("Munich", 8, new Timestamp(42), 3.14, arrayOfByte)))
+        Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
       val cityDataFrame = TestSQLContext.createDataFrame(cityRDD, testSchema)
 
       val avroDir = tempDir + "/avro"
