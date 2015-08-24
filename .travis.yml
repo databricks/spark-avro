@@ -5,6 +5,9 @@ jdk:
   - openjdk7
   - openjdk6
 sudo: false
+cache:
+  directories:
+    - $HOME/.ivy2
 env:
   matrix:
     - SPARK_VERSION="1.4.0"
