@@ -5,9 +5,13 @@ jdk:
   - openjdk7
   - openjdk6
 sudo: false
+env:
+  matrix:
+    - SPARK_VERSION="1.4.0"
+    - SPARK_VERSION="1.5.0-rc1"
 script:
-  - sbt -jvm-opts travis/jvmopts.compile compile
-  - sbt -jvm-opts travis/jvmopts.test coverage test
-  - sbt -jvm-opts travis/jvmopts.test scalastyle
+  - sbt -jvm-opts travis/jvmopts.compile -Dspark.version=$SPARK_VERSION compile
+  - sbt -jvm-opts travis/jvmopts.test -Dspark.version=$SPARK_VERSION coverage test
+  - sbt -jvm-opts travis/jvmopts.test -Dspark.version=$SPARK_VERSION scalastyle
 after_success:
   - bash <(curl -s https://codecov.io/bash)
