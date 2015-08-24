@@ -147,7 +147,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         StructField("bool_array", ArrayType(BooleanType), true),
         StructField("long_array", ArrayType(LongType), true),
         StructField("double_array", ArrayType(DoubleType), true),
-        StructField("decimal_array", ArrayType(DecimalType(5, 5)), true),
+        StructField("decimal_array", ArrayType(DecimalType(10, 0)), true),
         StructField("bin_array", ArrayType(BinaryType), true),
         StructField("timestamp_array", ArrayType(TimestampType), true),
         StructField("array_array", ArrayType(ArrayType(StringType), true), true),
