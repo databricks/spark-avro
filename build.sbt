@@ -72,3 +72,5 @@ ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
 
+// Display full-length stacktraces from ScalaTest:
+testOptions in Test += Tests.Argument("-oF")

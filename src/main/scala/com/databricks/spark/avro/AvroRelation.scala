@@ -55,9 +55,20 @@ private[avro] class AvroRelation(
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
-  private lazy val avroSchema = paths match {
-    case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() => throw NoFilesException
+  private lazy val avroSchema = if (paths.isEmpty) {
+    throw NoFilesException
+  } else {
+    // As of Spark 1.5.0, it's possible to receive an array which contains a single non-existent
+    // path, so we need to perform one additional existence check here. Fortunately, this should
+    // be cheap because we only need to check a single path.
+    val path = new Path(paths.head)
+    val hadoopConfiguration = sqlContext.sparkContext.hadoopConfiguration
+    val fs = FileSystem.get(path.toUri, hadoopConfiguration)
+    if (fs.exists(path)) {
+      newReader(paths.head)(_.getSchema)
+    } else {
+      throw NoFilesException
+    }
   }
 
   /**
