@@ -26,12 +26,6 @@ class AvroSuite extends FunSuite {
     assert(TestSQLContext.sql("select count(*) from avro_table").collect().head === Row(8))
   }
 
-  test("Check alias field in sql") {
-    val df = TestSQLContext.read.avro(testFile).addAvroAliasColumns()
-    df.registerTempTable("avro_table")
-    assert(TestSQLContext.sql("select string_alias1 from avro_table").count() === 3)
-  }
-
   test("convert formats") {
     TestUtils.withTempDir { dir =>
       val df = TestSQLContext.read.avro(episodesFile)

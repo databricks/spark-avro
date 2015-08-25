@@ -127,16 +127,17 @@ To save DataFrame as avro you should use the `save` method in `AvroSaver`. For e
 scala> AvroSaver.save(myRDD, "my/output/dir")
 ```
 
-To include aliases column in scheme invoke the method `addAvroAliasColumns()` of DataFrame.
-With alias while saving `saveAsAvroFile`, alias columns in DataFrame schema will not be include in Avro file.
-Alias will be available in `aliases` of avro schema.
-```scala
-scala>val dfWithAlias = df.addAvroAliasColumns()
+Avro schema's field 'doc' will be preserved in DataFrame's schema metadata.
+
+To include aliases column in scheme invoke
+```
+val df = sqlContext.read.format("com.databricks.spark.avro").option("withAlias", "true").load("test.avro")
 ```
 In Spark SQL, loading avro with alias columns use:
 ```
 create table mytable using com.databricks.spark.avro OPTIONS(path "test.avro", withAlias "true");
 ```
+While saving, alias columns in DataFrame schema will be stored in `aliases` of avro file.
 
 You can also specifiy the the record name and namespace with optional parameters:
 ```scala

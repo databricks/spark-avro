@@ -45,12 +45,4 @@ package object avro {
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
   }
-  
-    /**
-   * Adds a method, `avro`, to DataFrameReader that allows you to read avro files using
-   * the DataFileReade
-   */
-  implicit class AvroDataFrame(dataFrame: DataFrame) {
-    def addAvroAliasColumns(): DataFrame = SchemaConverters.dataFrameWithAliasColumn(dataFrame)
-  }
 }
