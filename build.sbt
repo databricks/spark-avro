@@ -10,7 +10,11 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := sys.props.get("spark.version").getOrElse("1.4.0")
+sparkVersion := "1.4.1"
+
+val testSparkVersion = settingKey[String]("The version of Spark to test against.")
+
+testSparkVersion := sys.props.getOrElse("spark.test.version", sparkVersion.value)
 
 resolvers += "Spark 1.5.0 RC2 Staging" at "https://repository.apache.org/content/repositories/orgapachespark-1141"
 
@@ -23,7 +27,10 @@ sparkComponents := Seq("sql")
 libraryDependencies ++= Seq(
   "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % "1.7.6"  classifier "hadoop2"  exclude("org.mortbay.jetty", "servlet-api"),
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test")
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test",
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test"
+)
 
 publishMavenStyle := true
 
