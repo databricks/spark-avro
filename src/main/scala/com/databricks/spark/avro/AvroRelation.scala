@@ -31,6 +31,7 @@ import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.mapreduce.Job
+
 import org.apache.spark.Logging
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.sql.sources._

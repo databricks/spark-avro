@@ -10,7 +10,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "1.4.0"
+sparkVersion := "1.4.1"
 
 spAppendScalaVersion := true
 
