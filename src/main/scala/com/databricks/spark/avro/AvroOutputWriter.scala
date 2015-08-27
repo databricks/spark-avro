@@ -16,10 +16,12 @@
 
 package com.databricks.spark.avro
 
+import java.io.{OutputStream, IOException}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
+import org.apache.hadoop.fs.Path
 import scala.collection.immutable.Map
 
 import org.apache.avro.generic.GenericData.Record
@@ -34,7 +36,8 @@ import org.apache.spark.sql.sources.OutputWriter
 import org.apache.spark.sql.types._
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
-private[avro] class AvroOutputWriter(path: String,
+private[avro] class AvroOutputWriter(
+    path: String,
     context: TaskAttemptContext,
     schema: StructType,
     recordName: String,
@@ -42,8 +45,26 @@ private[avro] class AvroOutputWriter(path: String,
 
   private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
 
+  /**
+   * Overrides the couple of methods responsible for generating the output streams / files so
+   * that the data can be correctly partitioned
+   */
   private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
-    new AvroKeyOutputFormat[GenericRecord]().getRecordWriter(context)
+    new AvroKeyOutputFormat[GenericRecord]() {
+
+      override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
+        val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
+        val split = context.getTaskAttemptID.getTaskID.getId
+        new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
+      }
+
+      @throws(classOf[IOException])
+      override def getAvroFileOutputStream(c: TaskAttemptContext): OutputStream = {
+        val path = getDefaultWorkFile(context, ".avro")
+        path.getFileSystem(context.getConfiguration).create(path)
+      }
+
+    }.getRecordWriter(context)
 
   override def write(row: Row): Unit = {
     val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])

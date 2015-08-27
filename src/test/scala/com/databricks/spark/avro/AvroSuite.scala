@@ -1,8 +1,9 @@
 package com.databricks.spark.avro
 
-import java.io.File
+import java.io.{FileNotFoundException, File}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.util.UUID
 
 import scala.collection.JavaConversions._
 
@@ -32,6 +33,20 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       sqlContext.sparkContext.stop()
     } finally {
       super.afterAll()
+    }
+  }
+
+  test("reading and writing partitioned data") {
+    val df = sqlContext.read.avro(episodesFile)
+    val fields = List("title", "air_date", "doctor")
+    for (field <- fields) {
+      TestUtils.withTempDir { dir =>
+        val outputDir = s"$dir/${UUID.randomUUID}"
+        df.write.partitionBy(field).avro(outputDir)
+        val input = sqlContext.read.avro(outputDir)
+        // makes sure that no fields got dropped
+        assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
+      }
     }
   }
 
@@ -69,7 +84,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[SchemaConversionException] {
+      intercept[UnsupportedOperationException] {
         sqlContext.read.avro(s"$dir.avro")
       }
     }
@@ -94,7 +109,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[SchemaConversionException] {
+      intercept[UnsupportedOperationException] {
         sqlContext.read.avro(s"$dir.avro")
       }
     }
@@ -299,7 +314,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val cityRDD = sqlContext.sparkContext.parallelize(Seq(
         Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
         Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
-        Row("Munich", 8, new Timestamp(42), BigDecimal.valueOf(3.14), arrayOfByte)))
+        Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
       val cityDataFrame = sqlContext.createDataFrame(cityRDD, testSchema)
 
       val avroDir = tempDir + "/avro"
@@ -336,21 +351,21 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       TestUtils.withTempDir(dir => sqlContext.read.avro(dir.getCanonicalPath))
     }
 
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       sqlContext.read.avro("very/invalid/path/123.avro")
     }
 
     // In case of globbed path that can't be matched to anything, another exception is thrown (and
     // exception message is helpful)
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       sqlContext.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 
-    intercept[NoAvroFilesException] {
+    intercept[FileNotFoundException] {
       TestUtils.withTempDir { dir =>
         FileUtils.touch(new File(dir, "test"))
         sqlContext.read.avro(dir.toString)

@@ -7,39 +7,67 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 
 ## Requirements
 
-This library requires Spark 1.3+. There is a 1.2 version as well.
+This documentation is for Spark 1.4+.
+
+This library has different versions for 1.2, 1.3, and 1.4.
+
+### Versions
+Spark changed how it reads / writes data in 1.4, so please use the correct version
+of this dedicated for your spark version
+
+1.2  -> `0.2.0`
+
+1.3 -> `1.0.0`
+
+1.4+ -> `1.1.0`
 
 ## Linking
 You can link against this library (for Spark 1.3+) in your program at the following coordinates:
 
+Using SBT: `libraryDependenicies += "com.databricks" %% "spark-avro_2.10" % "1.1.0"`
+
+using Maven: 
+```xml
+<dependency>
+    <groupId>com.databricks<groupId>
+    <artifactId>spark avro_2.10</artifactId>
+    <version>1.1.0</version>
+</dependency>
 ```
-groupId: com.databricks
-artifactId: spark-avro_2.10
-version: 1.0.0
-```
 
-Using SBT: `libraryDependencies += "com.databricks" %% "spark-avro" % "1.0.0"`
-
-<!---
-TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
---->
-
-The spark-avro jar file can also be added to a Spark using the `--jars` command line option.
+The spark-avro jar file can also be added to a Spark using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --jars spark-avro_2.10-1.0.0.jar
+$ bin/spark-shell --packages com.databricks:spark-avro_2.10:1.0.0
 ```
 
-For use with Spark 1.2, you can use version `0.2.0` instead.
+Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
+The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
-These examples use an avro file available for download
-[here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
 
-```
-$ wget https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro
-```
+Spark-Avro supports most conversions between Spark-SQL and Avro records, making
+Avro a first-class citizen in Spark. This library will automatically do all the
+required schema conversions for you.
+
+### Partitioning
+
+This library allows developers to easily read and write partitioned data
+witout any extra configuration. Just pass the columns you want to
+partition on just like you would for parquet.
+
+
+### Compression
+
+You can specify the type of compression to use when writing Avro out to
+disk. The supported types are **uncompressed**, **snappy**, and **deflate**.
+You can also specify the deflate level.
+
+### Specifying record name
+
+You can specify the record name and namespace to use by passing the a map
+of parameters with **recordName** and **recordNamespace**.
 
 ## Supported types for Avro -> SparkSQL conversion
 As of now, every avro type with the exception of complex unions is supported. To be more specific,
@@ -85,58 +113,89 @@ TimestampType -> long
 StructType -> record
 ```
 
+## Examples
+
+These examples use an avro file available for download
+[here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
+
 ### Scala API
 
 A recommended way to read query Avro data in sparkSQL, or save sparkSQL data as Avro is by using
 native DataFrame APIs (available in Scala, Java and Python, starting from Spark 1.3):
 
 ```scala
-import org.apache.spark.sql._
+// import needed for the .avro method to be added
+import com.databricks.spark.avro._
+		
 val sqlContext = new SQLContext(sc)
-// Creates a DataFrame from a specified file
-val df = sqlContext.load("src/test/resources/episodes.avro", "com.databricks.spark.avro")
-// Saves df to /new/dir/ as avro files
-df.save("/new/dir/", "com.databricks.spark.avro")
+
+// The Avro records get converted to spark types, filtered, and
+// then written back out as Avro records
+val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
-An alternative way is to use `avroFile` and `save` methods (available in 1.2+):
+Alternativly you can specify the format to use instead:
 
 ```scala
-scala> import org.apache.spark.sql.SQLContext
-
-scala> val sqlContext = new SQLContext(sc)
-
-scala> import com.databricks.spark.avro._
-
-scala> val episodes = sqlContext.avroFile("episodes.avro", 20)
-episodes: org.apache.spark.sql.DataFrame =
-DataFrame[0] at RDD at DataFrame.scala:104
-== Query Plan ==
-== Physical Plan ==
-PhysicalRDD [title#0,air_date#1,doctor#2], MappedRDD[2] at map at AvroRelation.scala:54
-
-scala> import sqlContext._
-import sqlContext._
-
-scala> episodes.select('title).collect()
-res0: Array[org.apache.spark.sql.Row] = Array([The Eleventh Hour], [The Doctor's Wife], [Horror of Fang Rock], [An Unearthly Child], [The Mysterious Planet], [Rose], [The Power of the Daleks], [Castrolava])
+val sqlContext = new SQLContext(sc)
+val df = sqlContext.read
+	.format("com.databricks.spark.avro")
+	.load("src/test/resources/episodes.avro")
+	
+df.filter("doctor > 5").write
+	.format("com.databricks.spark.avro")
+	.save("/tmp/output")
 ```
 
-`avroFile` allows you to specify the `minPartitions` parameter as its second argument.
-To save DataFrame as avro you should use the `save` method in `AvroSaver`. For example:
+You can specify the compression like this:
 
 ```scala
-scala> AvroSaver.save(myRDD, "my/output/dir")
+import com.databricks.spark.avro._
+val sqlContext = new SQLContext(sc)
+
+// configuration to use deflate compression
+sqlContext.setConf("spark.sql.avro.compression.codec", "deflate")
+sqlContext.setConf("spark.sql.avro.deflate.level", "5")
+
+val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+
+// writes out compressed Avro records
+df.write.avro("/tmp/output")
 ```
-You can also specifiy the the record name and namespace with optional parameters:
+
+You can write partitioned Avro records like this:
+
 ```scala
-scala> AvroSaver.save(myRDD, "my/output/dir", Map("recordName" -> "MyRecord", "recordNamespace" -> "com.mycompany.mystuff"))
+import com.databricks.spark.avro._
+
+val sqlContext = new SQLContext(sc)
+
+import sqlContext.implicits._
+
+val df = Seq((2012, 8, "Batman", 9.8),
+	(2012, 8, "Hero", 8.7),
+	(2012, 7, "Robot", 5.5),
+	(2011, 7, "Git", 2.0))
+	.toDF("year", "month", "title", "rating")
+
+df.write.partitionBy("year", "month").avro("/tmp/output")
 ```
 
-We also support the ability to read all avro files from some directory. To do that, you can pass
-a path to that directory to the avroFile() function. However, there is a limitation - all of
-those files must have the same schema. Additionally, files used must have a .avro extension.
+You can specify the record name and namespace like this:
 
+```scala
+import com.databricks.spark.avro._
+
+val sqlContext = new SQLContext(sc)
+val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+
+val name = "AvroTest"
+val namespace = "com.databricks.spark.avro"
+val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
+
+df.write.options(parameters).avro("/tmp/output")
+```
 
 ### Java API
 
@@ -145,11 +204,17 @@ The code is almost identical to Scala:
 
 ```java
 import org.apache.spark.sql.*;
+
 SQLContext sqlContext = new SQLContext(sc);
+
 // Creates a DataFrame from a specified file
-DataFrame df = sqlContext.load("src/test/resources/episodes.avro", "com.databricks.spark.avro");
-// Saves df to /new/dir/ as avro files
-df.save("/new/dir/", "com.databricks.spark.avro");
+DataFrame df = sqlContext.read().format("com.databricks.spark.avro")
+    .load("src/test/resources/episodes.avro");
+
+// Saves the subset of the Avro records read in
+df.filter($"age > 5").write()
+	.format("com.databricks.spark.avro")
+	.save("/tmp/output");
 ```
 
 
@@ -159,10 +224,12 @@ As mentioned before, a recommended way to query avro is to use native DataFrame 
 The code is almost identical to Scala:
 
 ```python
-# Creates a DataFrame from a specified file
-df = sqlContext.load("src/test/resources/episodes.avro", "com.databricks.spark.avro")
-# Saves df to /new/dir/ as avro files
-df.save("/new/dir/", "com.databricks.spark.avro")
+# Creates a DataFrame from a specified directory
+df = sqlContext.read.format("com.databricks.spark.avro").load("src/test/resources/episodes.avro")
+
+#  Saves the subset of the Avro records read in
+subset = df.where("age > 5")
+subset.write.format("com.databricks.spark.avro").save("output")
 ```
 
 ### SQL API
@@ -174,13 +241,7 @@ USING com.databricks.spark.avro
 OPTIONS (path "src/test/resources/episodes.avro")
 ```
 
-### Versions
-Spark changed how it reads / writes data in 1.4, so please use the correct version
-of this dedicated for your spark version
 
-1.3 -> 1.0.0
-
-1.4+ -> 1.1.0-SNAPSHOT
 
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),

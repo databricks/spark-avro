@@ -28,7 +28,6 @@ import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
-
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
@@ -86,11 +85,11 @@ private object SchemaConverters {
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
-          case other => throw new SchemaConversionException(
+          case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
 
-      case other => throw new SchemaConversionException(s"Unsupported type $other")
+      case other => throw new UnsupportedOperationException(s"Unsupported type $other")
     }
   }
 
@@ -193,10 +192,10 @@ private object SchemaConverters {
                 case null => null
               }
             }
-          case other => throw new SchemaConversionException(
+          case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
-      case other => throw new SchemaConversionException(s"invalid avro type: $other")
+      case other => throw new UnsupportedOperationException(s"invalid avro type: $other")
     }
   }
 
@@ -281,7 +280,7 @@ private object SchemaConverters {
           newFieldBuilder.record(structName).namespace(recordNamespace),
           recordNamespace)
 
-      case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
+      case other => throw new UnsupportedOperationException(s"Unexpected type $dataType.")
     }
   }
 
