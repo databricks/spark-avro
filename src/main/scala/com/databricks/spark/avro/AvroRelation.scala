@@ -52,7 +52,8 @@ private[avro] class AvroRelation(
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
     case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() => throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
+    case Array() =>
+      throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
   }
 
   /**
@@ -138,14 +139,15 @@ private[avro] class AvroRelation(
                 // A micro optimization to avoid allocating a WrappedArray per row.
                 private[this] val bufferSeq = rowBuffer.toSeq
 
-                // A function that pulls a column out of an avro record and puts the converted value into the correct
-                // slot of an array buffer.
-                type FieldExtractor = (GenericRecord) => Unit
-                private[this] val fieldExtractors: Array[FieldExtractor] = requiredColumns.zipWithIndex.map {
+                // An array of functions that pull a column out of an avro record and puts the
+                // converted value into the correct slot of the rowBuffer.
+                private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
                   case (columnName, idx) =>
                     // Spark SQL should not pass us invalid columns
                     val field =
-                      avroFieldMap.getOrElse(columnName, throw new AssertionError(s"Invalid column $columnName"))
+                      avroFieldMap.getOrElse(
+                        columnName,
+                        throw new AssertionError(s"Invalid column $columnName"))
                     val converter = SchemaConverters.createConverterToSQL(field.schema)
 
                     (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
