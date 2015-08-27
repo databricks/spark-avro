@@ -15,8 +15,7 @@ matrix:
       scala: 2.10.4
       env: TEST_SPARK_VERSION="1.5.0-rc2"
 script:
-  - sbt -jvm-opts travis/jvmopts.compile -Dspark.test.version=$TEST_SPARK_VERSION compile
-  - sbt -jvm-opts travis/jvmopts.test -Dspark.test.version=$TEST_SPARK_VERSION coverage test
-  - sbt -jvm-opts travis/jvmopts.test -Dspark.test.version=$TEST_SPARK_VERSION scalastyle
+  - sbt -Dspark.testVersion=$TEST_SPARK_VERSION coverage test
+  - sbt scalastyle
 after_success:
   - bash <(curl -s https://codecov.io/bash)

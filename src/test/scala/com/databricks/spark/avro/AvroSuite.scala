@@ -45,6 +45,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         df.write.partitionBy(field).avro(outputDir)
         val input = sqlContext.read.avro(outputDir)
         // makes sure that no fields got dropped
+        assert(input.select(field).collect().map(_(0).asInstanceOf[String]).sorted === df.select(field).collect().map(_(0).asInstanceOf[String]).sorted)
         assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
       }
     }
