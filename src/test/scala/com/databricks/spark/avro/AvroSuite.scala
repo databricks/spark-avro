@@ -1,6 +1,6 @@
 package com.databricks.spark.avro
 
-import java.io.File
+import java.io.{FileNotFoundException, File}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.UUID
@@ -70,7 +70,7 @@ class AvroSuite extends FunSuite {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[SchemaConversionException] {
+      intercept[UnsupportedOperationException] {
         TestSQLContext.read.avro(s"$dir.avro")
       }
     }
@@ -95,7 +95,7 @@ class AvroSuite extends FunSuite {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[SchemaConversionException] {
+      intercept[UnsupportedOperationException] {
         TestSQLContext.read.avro(s"$dir.avro")
       }
     }
@@ -337,21 +337,21 @@ class AvroSuite extends FunSuite {
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       TestUtils.withTempDir(dir => TestSQLContext.read.avro(dir.getCanonicalPath))
     }
 
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       TestSQLContext.read.avro("very/invalid/path/123.avro")
     }
 
     // In case of globbed path that can't be matched to anything, another exception is thrown (and
     // exception message is helpful)
-    intercept[AvroRelationException] {
+    intercept[FileNotFoundException] {
       TestSQLContext.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 
-    intercept[NoAvroFilesException] {
+    intercept[FileNotFoundException] {
       TestUtils.withTempDir { dir =>
         FileUtils.touch(new File(dir, "test"))
         TestSQLContext.read.avro(dir.toString)
