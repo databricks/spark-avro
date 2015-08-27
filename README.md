@@ -35,16 +35,15 @@ using Maven:
 </dependency>
 ```
 
-<!---
-TODO: Add a link to download the JAR directly for e.g. adding to the Spark shell
---->
-
-The spark-avro jar file can also be added to a Spark using the `--jars` command line option.
+The spark-avro jar file can also be added to a Spark using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --jars spark-avro_2.10-1.0.0.jar
+$ bin/spark-shell --packages com.databricks:spark-avro_2.10:1.0.0
 ```
+
+Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
+The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
 
