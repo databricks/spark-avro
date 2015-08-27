@@ -38,12 +38,6 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
 
-abstract class AvroRelationException(msg: String) extends Exception(msg)
-case object NoFilesException extends AvroRelationException("no input files given")
-case class SchemaConversionException(msg: String) extends AvroRelationException(msg)
-case class NoAvroFilesException(path: String)
-  extends AvroRelationException(s"Could not find .avro file with schema at $path")
-
 private[avro] class AvroRelation(
     override val paths: Array[String],
     private val maybeDataSchema: Option[StructType],
@@ -58,7 +52,7 @@ private[avro] class AvroRelation(
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
     case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() => throw NoFilesException
+    case Array() => throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
   }
 
   /**
@@ -134,20 +128,53 @@ private[avro] class AvroRelation(
             } else {
               val firstRecord = records.next()
               val superSchema = firstRecord.getSchema // the schema of the actual record
-
               // the fields that are actually required along with their converters
-              val avroFields = superSchema.getFields.map(f => (f.name, f)).toMap
-              // the list of field names along with their conversion function
-              val fields = new ArrayBuffer[(Any => Any, String)](requiredColumns.length)
+              val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
 
-              for (column <- requiredColumns) {
-                val field = avroFields.getOrElse(column,
-                  throw new SchemaConversionException(s"could not find Avro column: $column"))
-                fields.append((SchemaConverters.createConverterToSQL(field.schema), field.name))
+              new Iterator[Row] {
+                private[this] val baseIterator = records
+                private[this] var currentRecord = firstRecord
+                private[this] val rowBuffer = new Array[Any](requiredColumns.length)
+                // A micro optimization to avoid allocating a WrappedArray per row.
+                private[this] val bufferSeq = rowBuffer.toSeq
+
+                // A function that pulls a column out of an avro record and puts the converted value into the correct
+                // slot of an array buffer.
+                type FieldExtractor = (GenericRecord) => Unit
+                private[this] val fieldExtractors: Array[FieldExtractor] = requiredColumns.zipWithIndex.map {
+                  case (columnName, idx) =>
+                    // Spark SQL should not pass us invalid columns
+                    val field =
+                      avroFieldMap.getOrElse(columnName, throw new AssertionError(s"Invalid column $columnName"))
+                    val converter = SchemaConverters.createConverterToSQL(field.schema)
+
+                    (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
+                }
+
+                private def advanceNextRecord() = {
+                  if (baseIterator.hasNext) {
+                    currentRecord = baseIterator.next()
+                    true
+                  } else {
+                    false
+                  }
+                }
+
+                def hasNext = {
+                  currentRecord != null || advanceNextRecord()
+                }
+
+                def next() = {
+                  assert(hasNext)
+                  var i = 0
+                  while (i < fieldExtractors.length) {
+                    fieldExtractors(i)(currentRecord)
+                    i += 1
+                  }
+                  currentRecord = null
+                  Row.fromSeq(bufferSeq)
+                }
               }
-
-              Iterator(Row.fromSeq(fields.map(f => f._1(firstRecord.get(f._2))))) ++
-                records.map(record => Row.fromSeq(fields.map(f => f._1(record.get(f._2)))))
             }
         }))
     }
@@ -193,7 +220,7 @@ private[avro] class AvroRelation(
         statuses.find(_.getName.endsWith("avro"))
       } else {
         statuses.headOption
-      }).getOrElse(throw new NoAvroFilesException(path.toString))
+      }).getOrElse(throw new FileNotFoundException(s"No avro files present at ${path.toString}"))
 
     val reader = DataFileReader.openReader(new FsInput(singleFile, hadoopConfiguration),
       new GenericDatumReader[GenericRecord]())
