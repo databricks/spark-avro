@@ -12,16 +12,31 @@ spName := "databricks/spark-avro"
 
 sparkVersion := "1.4.1"
 
+val testSparkVersion = settingKey[String]("The version of Spark to test against.")
+
+testSparkVersion := sys.props.getOrElse("spark.testVersion", sparkVersion.value)
+
+resolvers += "Spark 1.5.0 RC2 Staging" at "https://repository.apache.org/content/repositories/orgapachespark-1141"
+
 spAppendScalaVersion := true
 
 spIncludeMaven := true
+
+spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
 
 libraryDependencies ++= Seq(
   "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % "1.7.6"  classifier "hadoop2"  exclude("org.mortbay.jetty", "servlet-api"),
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test")
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+  "commons-io" % "commons-io" % "2.4" % "test"
+)
+
+libraryDependencies ++= Seq(
+  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test",
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test"
+)
 
 publishMavenStyle := true
 
@@ -59,14 +74,12 @@ pomExtra :=
     </developer>
   </developers>
 
-
-
-libraryDependencies += "commons-io" % "commons-io" % "2.4" % "test"
-
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
-  else false
+  else true
 }
 
 EclipseKeys.eclipseOutput := Some("target/eclipse")
 
+// Display full-length stacktraces from ScalaTest:
+testOptions in Test += Tests.Argument("-oF")

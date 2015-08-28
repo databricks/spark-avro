@@ -1,13 +1,24 @@
 language: scala
-scala:
-  - 2.10.4
-jdk:
-  - openjdk7
-  - openjdk6
 sudo: false
+cache:
+  directories:
+    - $HOME/.ivy2
+matrix:
+  include:
+    - jdk: openjdk6
+      scala: 2.10.4
+      env: TEST_SPARK_VERSION="1.4.1"
+    - jdk: openjdk7
+      scala: 2.10.4
+      env: TEST_SPARK_VERSION="1.4.1"
+    - jdk: openjdk7
+      scala: 2.10.4
+      env: TEST_SPARK_VERSION="1.5.0-rc2"
+    - jdk: openjdk7
+      scala: 2.11.7
+      env: TEST_SPARK_VERSION="1.5.0-rc2"
 script:
-  - sbt -jvm-opts travis/jvmopts.compile compile
-  - sbt -jvm-opts travis/jvmopts.test coverage test
-  - sbt -jvm-opts travis/jvmopts.test scalastyle
+  - sbt -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
+  - sbt ++$TRAVIS_SCALA_VERSION scalastyle
 after_success:
   - bash <(curl -s https://codecov.io/bash)
