@@ -44,9 +44,10 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         val outputDir = s"$dir/${UUID.randomUUID}"
         df.write.partitionBy(field).avro(outputDir)
         val input = sqlContext.read.avro(outputDir)
-        // makes sure that no fields got dropped
-        assert(input.select(field).collect().map(_(0).asInstanceOf[String]).sorted === df.select(field).collect().map(_(0).asInstanceOf[String]).sorted)
-        assert(input.select(field).collect().toSet === df.select(field).collect().toSet)
+        // makes sure that no fields got dropped.
+        // We convert Rows to Seqs in order to work around SPARK-10325
+        assert(input.select(field).collect().map(_.toSeq).toSet ===
+          df.select(field).collect().map(_.toSeq).toSet)
       }
     }
   }
