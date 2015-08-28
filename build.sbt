@@ -16,6 +16,10 @@ val testSparkVersion = settingKey[String]("The version of Spark to test against.
 
 testSparkVersion := sys.props.getOrElse("spark.testVersion", sparkVersion.value)
 
+val testHadoopVersion = settingKey[String]("The version of Hadoop to test against.")
+
+testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
+
 resolvers += "Spark 1.5.0 RC2 Staging" at "https://repository.apache.org/content/repositories/orgapachespark-1141"
 
 spAppendScalaVersion := true
@@ -34,8 +38,9 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test",
-  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test"
+  "org.apache.hadoop" % "hadoop-client" % testHadoopVersion.value % "test",
+  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client")
 )
 
 publishMavenStyle := true
