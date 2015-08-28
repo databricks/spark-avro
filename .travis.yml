@@ -11,26 +11,26 @@ matrix:
     # Spark 1.4.1 and Scala 2.10
     - jdk: openjdk6
       scala: 2.10.4
-      env: HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.4.1"
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.4.1"
     - jdk: openjdk7
       scala: 2.10.4
-      env: HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.4.1"
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.4.1"
     # Spark 1.5.0 and Scala 2.10
     - jdk: openjdk7
       scala: 2.10.4
-      env: HADOOP_VERSION="1.0.4" SPARK_VERSION="1.5.0-rc2"
+      env: TEST_HADOOP_VERSION="1.0.4" TEST_SPARK_VERSION="1.5.0-rc2"
     - jdk: openjdk7
       scala: 2.10.4
-      env: HADOOP_VERSION="1.2.1" SPARK_VERSION="1.5.0-rc2"
+      env: TEST_HADOOP_VERSION="1.2.1" TEST_SPARK_VERSION="1.5.0-rc2"
     - jdk: openjdk7
       scala: 2.10.4
-      env: HADOOP_VERSION="2.2.0" SPARK_VERSION="1.5.0-rc2"
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.5.0-rc2"
     # Spark 1.5.0 and Scala 2.11
     - jdk: openjdk7
       scala: 2.11.7
       env: TEST_SPARK_VERSION="1.5.0-rc2"
 script:
-  - sbt -Dhadoop.testVersion=$HADOOP_VERSION -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
+  - sbt -Dhadoop.testVersion=$TEST_HADOOP_VERSION -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
   - sbt ++$TRAVIS_SCALA_VERSION scalastyle
 after_success:
   - bash <(curl -s https://codecov.io/bash)
