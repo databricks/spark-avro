@@ -37,10 +37,9 @@ dlog () {
 }
 
 acquire_sbt_jar () {
-  SBT_VERSION=`awk -F "=" '/sbt\\.version/ {print $2}' ./project/build.properties`
-  URL1=http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch.jar
-  URL2=http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch.jar
-  JAR=sbt/sbt-launch-${SBT_VERSION}.jar
+  SBT_VERSION=`awk -F "=" '/sbt\.version/ {print $2}' ./project/build.properties`
+  URL1=https://dl.bintray.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch.jar
+  JAR=build/sbt-launch-${SBT_VERSION}.jar
 
   sbt_jar=$JAR
 
@@ -50,10 +49,12 @@ acquire_sbt_jar () {
     # Download
     printf "Attempting to fetch sbt\n"
     JAR_DL="${JAR}.part"
-    if hash curl 2>/dev/null; then
-      (curl --silent ${URL1} > "${JAR_DL}" || curl --silent ${URL2} > "${JAR_DL}") && mv "${JAR_DL}" "${JAR}"
-    elif hash wget 2>/dev/null; then
-      (wget --quiet ${URL1} -O "${JAR_DL}" || wget --quiet ${URL2} -O "${JAR_DL}") && mv "${JAR_DL}" "${JAR}"
+    if [ $(command -v curl) ]; then
+      curl --fail --location --silent ${URL1} > "${JAR_DL}" &&\
+        mv "${JAR_DL}" "${JAR}"
+    elif [ $(command -v wget) ]; then
+      wget --quiet ${URL1} -O "${JAR_DL}" &&\
+        mv "${JAR_DL}" "${JAR}"
     else
       printf "You do not have curl or wget installed, please install sbt manually from http://www.scala-sbt.org/\n"
       exit -1
@@ -81,7 +82,7 @@ execRunner () {
     echo ""
   }
 
-  exec "$@"
+  "$@"
 }
 
 addJava () {
@@ -104,7 +105,7 @@ addResidual () {
   residual_args=( "${residual_args[@]}" "$1" )
 }
 addDebugger () {
-  addJava "-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=$1"
+  addJava "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$1"
 }
 
 # a ham-fisted attempt to move some memory settings in concert
@@ -124,7 +125,8 @@ require_arg () {
   local opt="$2"
   local arg="$3"
   if [[ -z "$arg" ]] || [[ "${arg:0:1}" == "-" ]]; then
-    die "$opt requires <$type> argument"
+    echo "$opt requires <$type> argument" 1>&2
+    exit 1
   fi
 }
 
@@ -149,7 +151,7 @@ process_args () {
      -java-home) require_arg path "$1" "$2" && java_cmd="$2/bin/java" && export JAVA_HOME=$2 && shift 2 ;;
 
             -D*) addJava "$1" && shift ;;
-            -J*) addJava "${1:2}" && shift ;; 
+            -J*) addJava "${1:2}" && shift ;;
             -P*) enableProfile "$1" && shift ;;
               *) addResidual "$1" && shift ;;
     esac
@@ -184,11 +186,4 @@ run() {
     -jar "$sbt_jar" \
     "${sbt_commands[@]}" \
     "${residual_args[@]}"
-}
-
-runAlternateBoot() {
-  local bootpropsfile="$1"
-  shift
-  addJava "-Dsbt.boot.properties=$bootpropsfile"
-  run $@
 }
