@@ -6,17 +6,13 @@ resolvers += "sonatype-releases" at "https://oss.sonatype.org/content/repositori
 
 resolvers += "Spark Package Main Repo" at "https://dl.bintray.com/spark-packages/maven"
 
-libraryDependencies += "org.ow2.asm"  % "asm" % "5.0.3"
-
-libraryDependencies += "org.ow2.asm"  % "asm-commons" % "5.0.3"
-
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "4.0.0")
 
 addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
 
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
-addSbtPlugin("org.spark-packages" % "sbt-spark-package" % "0.2.2")
+addSbtPlugin("org.spark-packages" % "sbt-spark-package" % "0.2.3")
 
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.1.0")
 
