@@ -9,37 +9,39 @@ A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/l
 
 This documentation is for Spark 1.4+.
 
-This library has different versions for 1.2, 1.3, and 1.4.
+This library has different versions for Spark 1.2, 1.3, and 1.4+:
 
-### Versions
-Spark changed how it reads / writes data in 1.4, so please use the correct version
-of this dedicated for your spark version
-
-1.2  -> `0.2.0`
-
-1.3 -> `1.0.0`
-
-1.4+ -> `1.1.0`
+| Spark Version | `spark-avro` version |
+| ------------- |----------------------|
+| `1.2`         | `0.2.0`              |
+| `1.3`         | `1.0.0`              |
+| `1.4+`        | `2.0.0`              |
 
 ## Linking
-You can link against this library (for Spark 1.3+) in your program at the following coordinates:
 
-Using SBT: `libraryDependenicies += "com.databricks" %% "spark-avro_2.10" % "1.1.0"`
+You can link against this library (for Spark 1.4+) in your program at the following coordinates:
 
-using Maven: 
+Using SBT:
+
+```
+libraryDependenicies += "com.databricks" %% "spark-avro" % "2.0.0"
+```
+
+Using Maven:
+
 ```xml
 <dependency>
     <groupId>com.databricks<groupId>
-    <artifactId>spark avro_2.10</artifactId>
-    <version>1.1.0</version>
+    <artifactId>spark-avro_2.10</artifactId>
+    <version>2.0.0</version>
 </dependency>
 ```
 
-The spark-avro jar file can also be added to a Spark using the `--packages` command line option.
+The `spark-avro` library can also be added to Spark jobs launched through `spark-shell` or `spark-submit` by using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.10:1.0.0
+$ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.0
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
@@ -47,7 +49,7 @@ The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
 
-Spark-Avro supports most conversions between Spark-SQL and Avro records, making
+`spark-avro` supports most conversions between Spark SQL and Avro records, making
 Avro a first-class citizen in Spark. This library will automatically do all the
 required schema conversions for you.
 
@@ -55,73 +57,67 @@ required schema conversions for you.
 
 This library allows developers to easily read and write partitioned data
 witout any extra configuration. Just pass the columns you want to
-partition on just like you would for parquet.
-
+partition on just like you would for Parquet.
 
 ### Compression
 
 You can specify the type of compression to use when writing Avro out to
-disk. The supported types are **uncompressed**, **snappy**, and **deflate**.
+disk. The supported types are `uncompressed`, `snappy`, and `deflate`.
 You can also specify the deflate level.
 
 ### Specifying record name
 
-You can specify the record name and namespace to use by passing the a map
-of parameters with **recordName** and **recordNamespace**.
+You can specify the record name and namespace to use by passing a map
+of parameters with `recordName` and `recordNamespace`.
 
-## Supported types for Avro -> SparkSQL conversion
-As of now, every avro type with the exception of complex unions is supported. To be more specific,
-we use the following mapping from avro types to SparkSQL types:
+## Supported types for Avro -> Spark SQL conversion
 
-```
-boolean -> BooleanType
-int -> IntegerType
-long -> LongType
-float -> FloatType
-double -> DoubleType
-bytes -> BinaryType
-string -> StringType
-record -> StructType
-enum -> StringType
-array -> ArrayType
-map -> MapType
-fixed -> BinaryType
-```
+`spark-avro` supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
 
-As for unions, we only support three kinds of unions:
+| Avro type | Spark SQL type |
+| --------- |----------------|
+| boolean   | BooleanType    |
+| int       | IntegerType    |
+| long      | LongType       |
+| float     | FloatType      |
+| double    | DoubleType     |
+| bytes     | BinaryType     |
+| string    | StringType     |
+| record    | StructType     |
+| enum      | StringType     |
+| array     | ArrayType      |
+| map       | MapType        |
+| fixed     | BinaryType     |
 
-1) union(int, long)
+In addition to the types listed above, `spark-avro` supports reading of three types of `union` types:
 
-2) union(float, double)
+1. `union(int, long)`
+2. `union(float, double)`
+3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
 
-3) union(something, null), where something is one of the avro types mentioned above, including
-two types of unions.
+At the moment, `spark-avro` ignores docs, aliases and other properties present in the Avro file.
 
-At the moment we ignore docs, aliases and other properties present in the avro file.
+## Supported types for Spark SQL -> Avro conversion
 
-## Supported types for SparkSQL -> Avro conversion
+`spark-avro` supports writing of all Spark SQL types into Avro. For most types, the mapping from Spark types to Avro types is straightforward (e.g. IntegerType gets converted to int); however, there are a few special cases which are listed below:
 
-Every SparkSQL type is supported. For most of them the corresponding type is obvious
-(e.g. IntegerType gets converted to int), for the rest the following conversions are used:
-
-```
-ByteType -> int
-ShortType -> int
-DecimalType -> string
-BinaryType -> bytes
-TimestampType -> long
-StructType -> record
-```
+| Spark SQL type | Avro type |
+| ---------------|-----------|
+| ByteType       | int       |
+| ShortType      | int       |
+| DecimalType    | string    |
+| BinaryType     | bytes     |
+| TimestampType  | long      |
+| StructType     | record    |
 
 ## Examples
 
-These examples use an avro file available for download
+The recommended way to read or write Avro data from Spark SQL is by using Spark's DataFrame APIs, which are available in Scala, Java, Python, and R.
+
+These examples use an Avro file available for download
 [here](https://github.com/databricks/spark-avro/raw/master/src/test/resources/episodes.avro):
 
 ### Scala API
-
-A recommended way to read query Avro data in sparkSQL, or save sparkSQL data as Avro is by using
-native DataFrame APIs (available in Scala, Java and Python, starting from Spark 1.3):
 
 ```scala
 // import needed for the .avro method to be added
@@ -129,7 +125,7 @@ import com.databricks.spark.avro._
 		
 val sqlContext = new SQLContext(sc)
 
-// The Avro records get converted to spark types, filtered, and
+// The Avro records get converted to Spark types, filtered, and
 // then written back out as Avro records
 val df = sqlContext.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
@@ -148,7 +144,7 @@ df.filter("doctor > 5").write
 	.save("/tmp/output")
 ```
 
-You can specify the compression like this:
+You can also specify Avro compression options:
 
 ```scala
 import com.databricks.spark.avro._
@@ -199,9 +195,6 @@ df.write.options(parameters).avro("/tmp/output")
 
 ### Java API
 
-The recommended way to query avro is to use the native DataFrame APIs.
-The code is almost identical to Scala:
-
 ```java
 import org.apache.spark.sql.*;
 
@@ -219,9 +212,6 @@ df.filter($"age > 5").write()
 
 
 ### Python API
-
-As mentioned before, a recommended way to query avro is to use native DataFrame APIs.
-The code is almost identical to Scala:
 
 ```python
 # Creates a DataFrame from a specified directory
@@ -250,7 +240,7 @@ which is automatically downloaded by the included shell script.  To build a JAR 
 
 ## Testing
 To run the tests, you should run `sbt/sbt test`. In case you are doing improvements that target
-speed, you can generate a sample avro file and check how long does it take to read that avro file
+speed, you can generate a sample Avro file and check how long does it takes to read that Avro file
 using the following commands:
 
 `sbt/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"`
@@ -260,7 +250,7 @@ for each file, as well as the overall number of files.
 `sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data
 inside `target/avroForBenchmark/` and tells you how long did the operation take.
 
-Similarly, you can do benchmarks on how long does it take to write DataFrame as avro file with:
+Similarly, you can do benchmarks on how long does it take to write DataFrame as Avro file with:
 
 `sbt/sbt "test:run-main com.databricks.spark.avro.AvroWriteBenchmark NUMBER_OF_ROWS"`, where
 `NUMBER_OF_ROWS` is an optional parameter that allows you to specify the number of rows in
