@@ -1,7 +1,5 @@
 name := "spark-avro"
 
-version := "1.1.0-SNAPSHOT"
-
 organization := "com.databricks"
 
 scalaVersion := "2.10.5"
@@ -38,15 +36,27 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test"
 )
 
+// Display full-length stacktraces from ScalaTest:
+testOptions in Test += Tests.Argument("-oF")
+
+ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+  if (scalaBinaryVersion.value == "2.10") false
+  else true
+}
+
+EclipseKeys.eclipseOutput := Some("target/eclipse")
+
+/********************
+ * Release settings *
+ ********************/
+
 publishMavenStyle := true
 
-publishTo := {
-  val nexus = "https://oss.sonatype.org/"
-  if (version.value.endsWith("SNAPSHOT"))
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-}
+releaseCrossBuild := true
+
+licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
+
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
 pomExtra :=
   <url>https://github.com/databricks/spark-avro</url>
@@ -74,12 +84,21 @@ pomExtra :=
     </developer>
   </developers>
 
-ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
-  if (scalaBinaryVersion.value == "2.10") false
-  else true
-}
+bintrayReleaseOnPublish in ThisBuild := false
 
-EclipseKeys.eclipseOutput := Some("target/eclipse")
+import ReleaseTransformations._
 
-// Display full-length stacktraces from ScalaTest:
-testOptions in Test += Tests.Argument("-oF")
+// Add publishing to spark packages as another step.
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  publishArtifacts,
+  releaseStepTask(spPublish),
+  setNextVersion,
+  commitNextVersion,
+  pushChanges
+)
