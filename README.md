@@ -1,6 +1,6 @@
 # Spark SQL Avro Library
 
-A library for querying Avro data with [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html) and saving Spark SQL as Avro.
+A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
 [![Build Status](https://travis-ci.org/databricks/spark-avro.svg?branch=master)](https://travis-ci.org/databricks/spark-avro)
 [![codecov.io](http://codecov.io/github/databricks/spark-avro/coverage.svg?branch=master)](http://codecov.io/github/databricks/spark-avro?branch=master)
@@ -49,26 +49,14 @@ The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
 
-`spark-avro` supports most conversions between Spark SQL and Avro records, making
-Avro a first-class citizen in Spark. This library will automatically do all the
-required schema conversions for you.
+`spark-avro` supports reading and writing of Avro data from Spark SQL.
 
-### Partitioning
-
-This library allows developers to easily read and write partitioned data
-witout any extra configuration. Just pass the columns you want to
-partition on just like you would for Parquet.
-
-### Compression
-
-You can specify the type of compression to use when writing Avro out to
-disk. The supported types are `uncompressed`, `snappy`, and `deflate`.
-You can also specify the deflate level.
-
-### Specifying record name
-
-You can specify the record name and namespace to use by passing a map
-of parameters with `recordName` and `recordNamespace`.
+- **Automatic schema conversion:** `spark-avro` supports most conversions between Spark SQL and Avro records, making Avro a first-class citizen in Spark.
+- **Partitioning:** This library allows developers to easily read and write partitioned data
+witout any extra configuration. Just pass the columns you want to partition on, just like you would for Parquet.
+- **Compression:**  You can specify the type of compression to use when writing Avro out to
+disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can also specify the deflate level.
+- **Specifying record names:** You can specify the record name and namespace to use by passing a map of parameters with `recordName` and `recordNamespace`.
 
 ## Supported types for Avro -> Spark SQL conversion
 
