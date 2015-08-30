@@ -224,22 +224,30 @@ OPTIONS (path "src/test/resources/episodes.avro")
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),
 which is automatically downloaded by the included shell script.  To build a JAR file simply run
-`sbt/sbt package` from the project root.
+`build/sbt package` from the project root.
 
 ## Testing
-To run the tests, you should run `sbt/sbt test`. In case you are doing improvements that target
-speed, you can generate a sample Avro file and check how long does it takes to read that Avro file
+To run the tests, you should run `build/sbt test`. In case you are doing improvements that target
+speed, you can generate a sample Avro file and check how long it takes to read that Avro file
 using the following commands:
 
-`sbt/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"`
+```
+build/sbt "test:run-main com.databricks.spark.avro.AvroFileGenerator NUMBER_OF_RECORDS NUMBER_OF_FILES"
+```
+
 will create sample avro files in `target/avroForBenchmark/`. You can specify the number of records
 for each file, as well as the overall number of files.
 
-`sbt/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"` runs `count()` on the data
-inside `target/avroForBenchmark/` and tells you how long did the operation take.
+```
+build/sbt "test:run-main com.databricks.spark.avro.AvroReadBenchmark"
+```
 
-Similarly, you can do benchmarks on how long does it take to write DataFrame as Avro file with:
+runs `count()` on the data inside `target/avroForBenchmark/` and tells you how the operation took.
 
-`sbt/sbt "test:run-main com.databricks.spark.avro.AvroWriteBenchmark NUMBER_OF_ROWS"`, where
-`NUMBER_OF_ROWS` is an optional parameter that allows you to specify the number of rows in
-DataFrame that we will be writing.
+Similarly, you can do benchmarks on how long it takes to write DataFrame as Avro file with
+
+```
+build/sbt "test:run-main com.databricks.spark.avro.AvroWriteBenchmark NUMBER_OF_ROWS"
+```
+
+where `NUMBER_OF_ROWS` is an optional parameter that allows you to specify the number of rows in DataFrame that we will be writing.
