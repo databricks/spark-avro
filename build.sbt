@@ -102,8 +102,8 @@ releaseProcess := Seq[ReleaseStep](
   commitReleaseVersion,
   tagRelease,
   publishArtifacts,
-  releaseStepTask(spPublish),
   setNextVersion,
   commitNextVersion,
-  pushChanges
+  pushChanges,
+  releaseStepTask(spPublish)
 )
