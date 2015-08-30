@@ -47,6 +47,8 @@ $ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.0
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
 The `--packages` argument can also be used with `bin/spark-submit`.
 
+This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed above.
+
 ## Features
 
 `spark-avro` supports reading and writing of Avro data from Spark SQL.
