@@ -16,10 +16,12 @@
 
 package com.databricks.spark.avro
 
+import java.io.{OutputStream, IOException}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
+import org.apache.hadoop.fs.Path
 import scala.collection.immutable.Map
 
 import org.apache.avro.generic.GenericData.Record
@@ -27,14 +29,16 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.{TaskAttemptID, RecordWriter, TaskAttemptContext}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.sources.OutputWriter
 import org.apache.spark.sql.types._
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
-private[avro] class AvroOutputWriter(path: String,
+private[avro] class AvroOutputWriter(
+    path: String,
     context: TaskAttemptContext,
     schema: StructType,
     recordName: String,
@@ -42,8 +46,40 @@ private[avro] class AvroOutputWriter(path: String,
 
   private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
 
+  /**
+   * Overrides the couple of methods responsible for generating the output streams / files so
+   * that the data can be correctly partitioned
+   */
   private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
-    new AvroKeyOutputFormat[GenericRecord]().getRecordWriter(context)
+    new AvroKeyOutputFormat[GenericRecord]() {
+
+      private def getConfigurationFromContext(context: TaskAttemptContext): Configuration = {
+        // Use reflection to get the Configuration. This is necessary because TaskAttemptContext
+        // is a class in Hadoop 1.x and an interface in Hadoop 2.x.
+        val method = context.getClass.getMethod("getConfiguration")
+        method.invoke(context).asInstanceOf[Configuration]
+      }
+
+      override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
+        val uniqueWriteJobId =
+          getConfigurationFromContext(context).get("spark.sql.sources.writeJobUUID")
+        val taskAttemptId: TaskAttemptID = {
+          // Use reflection to get the TaskAttemptID. This is necessary because TaskAttemptContext
+          // is a class in Hadoop 1.x and an interface in Hadoop 2.x.
+          val method = context.getClass.getMethod("getTaskAttemptID")
+          method.invoke(context).asInstanceOf[TaskAttemptID]
+        }
+        val split = taskAttemptId.getTaskID.getId
+        new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
+      }
+
+      @throws(classOf[IOException])
+      override def getAvroFileOutputStream(c: TaskAttemptContext): OutputStream = {
+        val path = getDefaultWorkFile(context, ".avro")
+        path.getFileSystem(getConfigurationFromContext(context)).create(path)
+      }
+
+    }.getRecordWriter(context)
 
   override def write(row: Row): Unit = {
     val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])

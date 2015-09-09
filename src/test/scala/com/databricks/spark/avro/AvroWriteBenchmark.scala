@@ -7,10 +7,9 @@ import scala.util.Random
 
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.test.TestSQLContext
 
 /**
  * This object runs a simple benchmark test to find out how long does it take to write a large
@@ -38,10 +37,6 @@ object AvroWriteBenchmark {
       TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
   }
 
-  private def createLargeRDD(numberOfRows: Int): RDD[Row] = {
-    TestSQLContext.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow())
-  }
-
   def main(args: Array[String]) {
     var numberOfRows = defaultNumberOfRows
     if (args.size > 0) {
@@ -50,9 +45,13 @@ object AvroWriteBenchmark {
 
     println(s"\n\n\nPreparing for a benchmark test - creating a RDD with $numberOfRows rows\n\n\n")
 
+    val sqlContext = new SQLContext(new SparkContext("local[2]", "AvroReadBenchmark"))
+
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
-    val testDataFrame = TestSQLContext.applySchema(createLargeRDD(numberOfRows), testSchema)
+    val testDataFrame = sqlContext.createDataFrame(
+      sqlContext.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow()),
+      testSchema)
 
     println("\n\n\nStaring benchmark test - writing a DataFrame as avro file\n\n\n")
 
@@ -66,6 +65,6 @@ object AvroWriteBenchmark {
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
     FileUtils.deleteDirectory(tempDir)
-    TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
+    sqlContext.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

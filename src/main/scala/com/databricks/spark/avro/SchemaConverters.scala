@@ -16,19 +16,20 @@
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
+import java.util.ArrayList
 import java.util.HashMap
+
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
+
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.DataFrame
-import java.util.ArrayList
-import scala.collection.mutable.ListBuffer
-
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -106,25 +107,12 @@ private object SchemaConverters {
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
-          case other => throw new SchemaConversionException(
+          case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
 
-      case other => throw new SchemaConversionException(s"Unsupported type $other")
+      case other => throw new UnsupportedOperationException(s"Unsupported type $other")
     }
-  }
-
-  def dataFrameWithAliasColumn(df : DataFrame) : DataFrame = {
-    var newDf = df
-    for (field <- df.schema.fields) {
-      if (field.metadata.contains(METADATA_KEY_ALIASES)) {
-        val aliasArray = field.metadata.getStringArray(METADATA_KEY_ALIASES)
-        for (alias <- aliasArray) {
-          newDf = newDf.withColumn(alias, df.col(field.name))
-        }
-      }
-    }
-    newDf
   }
 
   /**
@@ -140,7 +128,7 @@ private object SchemaConverters {
     val nonAliasStructFields = structType.fields.filterNot(field =>
       field.metadata.contains(METADATA_KEY_ALIASES)
         && field.metadata.contains(METADATA_KEY_PARENT)
-            && !field.metadata.getString(METADATA_KEY_PARENT).equals(field.name))
+          && !field.metadata.getString(METADATA_KEY_PARENT).equals(field.name))
 
     nonAliasStructFields.foreach { field =>
       var newFieldBuilder = fieldsAssembler.name(field.name)
@@ -239,10 +227,10 @@ private object SchemaConverters {
                 case null => null
               }
             }
-          case other => throw new SchemaConversionException(
+          case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
-      case other => throw new SchemaConversionException(s"invalid avro type: $other")
+      case other => throw new UnsupportedOperationException(s"invalid avro type: $other")
     }
   }
 
@@ -327,7 +315,7 @@ private object SchemaConverters {
           newFieldBuilder.record(structName).namespace(recordNamespace),
           recordNamespace)
 
-      case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
+      case other => throw new UnsupportedOperationException(s"Unexpected type $dataType.")
     }
   }
 

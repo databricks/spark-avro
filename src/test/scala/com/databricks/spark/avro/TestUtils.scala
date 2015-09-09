@@ -25,7 +25,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 import com.google.common.io.Files
-import org.apache.spark.sql.test.TestSQLContext
+import org.apache.spark.sql.SQLContext
 
 private[avro] object TestUtils {
 
@@ -33,7 +33,7 @@ private[avro] object TestUtils {
    * This function checks that all records in a file match the original
    * record.
    */
-  def checkReloadMatchesSaved(testFile: String, avroDir: String) = {
+  def checkReloadMatchesSaved(sqlContext: SQLContext, testFile: String, avroDir: String) = {
 
     def convertToString(elem: Any): String = {
       elem match {
@@ -44,8 +44,8 @@ private[avro] object TestUtils {
       }
     }
 
-    val originalEntries = TestSQLContext.read.avro(testFile).collect()
-    val newEntries = TestSQLContext.read.avro(avroDir).collect()
+    val originalEntries = sqlContext.read.avro(testFile).collect()
+    val newEntries = sqlContext.read.avro(avroDir).collect()
 
     assert(originalEntries.length == newEntries.length)
 

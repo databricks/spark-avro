@@ -3,7 +3,8 @@ package com.databricks.spark.avro
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import org.apache.spark.sql.test.TestSQLContext
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.SQLContext
 
 
 /**
@@ -20,12 +21,14 @@ object AvroReadBenchmark {
         "is empty. First you should generate some files to run a benchmark with (see README)")
     }
 
-    TestSQLContext.read.avro(AvroFileGenerator.outputDir).count()
+    val sqlContext = new SQLContext(new SparkContext("local[2]", "AvroReadBenchmark"))
 
-   println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
+    sqlContext.read.avro(AvroFileGenerator.outputDir).count()
+
+    println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
 
     val startTime = System.nanoTime
-    TestSQLContext
+    sqlContext
       .read
       .avro(AvroFileGenerator.outputDir)
       .select("string")
@@ -35,6 +38,6 @@ object AvroReadBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    TestSQLContext.sparkContext.stop()  // Otherwise scary exception message appears
+    sqlContext.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }
