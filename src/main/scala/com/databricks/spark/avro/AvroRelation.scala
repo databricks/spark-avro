@@ -41,7 +41,7 @@ private[avro] class AvroRelation(
     private val maybeDataSchema: Option[StructType],
     override val userDefinedPartitionColumns: Option[StructType],
     private val parameters: Map[String, String])
-    (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging with Serializable {
+    (@transient val sqlContext: SQLContext) extends HadoopFsRelation with Logging {
 
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
