@@ -65,13 +65,6 @@ releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
 pomExtra :=
   <url>https://github.com/databricks/spark-avro</url>
-  <licenses>
-    <license>
-      <name>Apache License, Verision 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
-      <distribution>repo</distribution>
-    </license>
-  </licenses>
   <scm>
     <url>git@github.com:databricks/spark-avro.git</url>
     <connection>scm:git:git@github.com:databricks/spark-avro.git</connection>
@@ -81,6 +74,11 @@ pomExtra :=
       <id>marmbrus</id>
       <name>Michael Armbrust</name>
       <url>https://github.com/marmbrus</url>
+    </developer>
+    <developer>
+      <id>JoshRosen</id>
+      <name>Josh Rosen</name>
+      <url>https://github.com/JoshRosen</url>
     </developer>
     <developer>
       <id>vlyubin</id>

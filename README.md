@@ -15,7 +15,7 @@ This library has different versions for Spark 1.2, 1.3, and 1.4+:
 | ------------- |----------------------|
 | `1.2`         | `0.2.0`              |
 | `1.3`         | `1.0.0`              |
-| `1.4+`        | `2.0.0`              |
+| `1.4+`        | `2.0.1`              |
 
 ## Linking
 
@@ -24,7 +24,7 @@ You can link against this library (for Spark 1.4+) in your program at the follow
 Using SBT:
 
 ```
-libraryDependenicies += "com.databricks" %% "spark-avro" % "2.0.0"
+libraryDependenicies += "com.databricks" %% "spark-avro" % "2.0.1"
 ```
 
 Using Maven:
@@ -33,7 +33,7 @@ Using Maven:
 <dependency>
     <groupId>com.databricks<groupId>
     <artifactId>spark-avro_2.10</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 
@@ -41,7 +41,7 @@ The `spark-avro` library can also be added to Spark jobs launched through `spark
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.0
+$ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
