@@ -50,7 +50,8 @@ package object avro {
   }
 
   /**
-   * Adds a signature to [[SQLContext.createDataFrame]], to create a DataFrame from an RDD of GenericRecords.
+   * Adds a signature to [[SQLContext.createDataFrame]], to create a DataFrame from an RDD of
+   * GenericRecords.
    */
   implicit class AvroSQLContext(sqlContext: SQLContext) {
     def createDataFrame(rdd: RDD[GenericRecord], schema: Schema): DataFrame = {

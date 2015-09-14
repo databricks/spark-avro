@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Databricks
+ * Copyright 2014 Databricks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,20 +31,29 @@ object AvroUtil {
   /**
    * Create a DataFrame from an RDD of GenericRecords, with columns based on the provided schema
    */
-  def createDataFrame(sqlContext: SQLContext, rdd: RDD[GenericRecord], schema: Schema): DataFrame = {
+  def createDataFrame(
+      sqlContext: SQLContext,
+      rdd: RDD[GenericRecord],
+      schema: Schema): DataFrame = {
     sqlContext.createDataFrame(
       convertRecordRDDToRowRDD(rdd, schema.getFields.map(_.name()).toArray),
       SchemaConverters.toSqlType(schema).dataType.asInstanceOf[StructType])
   }
 
   /**
-   * Java API to create a DataFrame from an RDD of GenericRecords, with columns based on the provided schema.
+   * Java API to create a DataFrame from an RDD of GenericRecords, with columns based on the
+   * provided schema.
    */
-  def createDataFrame(sqlContext: SQLContext, rdd: JavaRDD[GenericRecord], schema: Schema): DataFrame = {
+  def createDataFrame(
+      sqlContext: SQLContext,
+      rdd: JavaRDD[GenericRecord],
+      schema: Schema): DataFrame = {
     createDataFrame(sqlContext, rdd.rdd, schema)
   }
 
-  private[avro] def convertRecordRDDToRowRDD(rdd: RDD[GenericRecord], requiredColumns: Array[String]): RDD[Row] = {
+  private[avro] def convertRecordRDDToRowRDD(
+      rdd: RDD[GenericRecord],
+      requiredColumns: Array[String]): RDD[Row] = {
     rdd.mapPartitions { records =>
       if (records.isEmpty) {
         Iterator.empty
