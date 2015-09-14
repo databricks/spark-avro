@@ -15,12 +15,11 @@
  */
 package com.databricks.spark
 
+import org.apache.avro.Schema
 import org.apache.avro.generic.GenericRecord
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
-import scala.collection.JavaConversions._
-
-import scala.collection.Iterator
 
 package object avro {
 
@@ -36,7 +35,7 @@ package object avro {
 
   /**
    * Adds a method, `avro`, to DataFrameWriter that allows you to write avro files using
-   * the DataFileWriter
+   * the DataFrameWriter
    */
   implicit class AvroDataFrameWriter(writer: DataFrameWriter) {
     def avro: String => Unit = writer.format("com.databricks.spark.avro").save
@@ -44,73 +43,18 @@ package object avro {
 
   /**
    * Adds a method, `avro`, to DataFrameReader that allows you to read avro files using
-   * the DataFileReade
+   * the DataFrameReader
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
   }
 
   /**
-   * Adds a method, `toRowRDD`, to RDDs of GenericRecords.  This allows you to convert it to
-   * an RDD of Row (and, by implication, a DataFrame).
+   * Adds a signature to [[SQLContext.createDataFrame]], to create a DataFrame from an RDD of GenericRecords.
    */
-  implicit class GenericRecordRDD(rdd: RDD[GenericRecord]) {
-    def toRowRDD(requiredColumns: Array[String]): RDD[Row] = rdd.mapPartitions { records =>
-      if (records.isEmpty) {
-        Iterator.empty
-      } else {
-        val firstRecord = records.next()
-        val superSchema = firstRecord.getSchema // the schema of the actual record
-        // the fields that are actually required along with their converters
-        val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
-
-        new Iterator[Row] {
-          private[this] val baseIterator = records
-          private[this] var currentRecord = firstRecord
-          private[this] val rowBuffer = new Array[Any](requiredColumns.length)
-          // A micro optimization to avoid allocating a WrappedArray per row.
-          private[this] val bufferSeq = rowBuffer.toSeq
-
-          // An array of functions that pull a column out of an avro record and puts the
-          // converted value into the correct slot of the rowBuffer.
-          private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
-            case (columnName, idx) =>
-              // Spark SQL should not pass us invalid columns
-              val field =
-                avroFieldMap.getOrElse(
-                  columnName,
-                  throw new AssertionError(s"Invalid column $columnName"))
-              val converter = SchemaConverters.createConverterToSQL(field.schema)
-
-              (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
-          }
-
-          private def advanceNextRecord() = {
-            if (baseIterator.hasNext) {
-              currentRecord = baseIterator.next()
-              true
-            } else {
-              false
-            }
-          }
-
-          def hasNext = {
-            currentRecord != null || advanceNextRecord()
-          }
-
-          def next() = {
-            assert(hasNext)
-            var i = 0
-            while (i < fieldExtractors.length) {
-              fieldExtractors(i)(currentRecord)
-              i += 1
-            }
-            currentRecord = null
-            Row.fromSeq(bufferSeq)
-          }
-        }
-      }
+  implicit class AvroSQLContext(sqlContext: SQLContext) {
+    def createDataFrame(rdd: RDD[GenericRecord], schema: Schema): DataFrame = {
+      AvroUtil.createDataFrame(sqlContext, rdd, schema)
     }
   }
-
 }

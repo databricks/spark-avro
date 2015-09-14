@@ -117,14 +117,14 @@ private[avro] class AvroRelation(
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
       new UnionRDD[Row](sqlContext.sparkContext,
-      inputs.map(path =>
-        sqlContext.sparkContext.hadoopFile(
+      inputs.map(path => {
+        val wrappedAvroRDD = sqlContext.sparkContext.hadoopFile(
           path.getPath.toString,
           classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
           classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
-          classOf[org.apache.hadoop.io.NullWritable]).keys.map(_.datum())
-          .toRowRDD(requiredColumns)
-        ))
+          classOf[org.apache.hadoop.io.NullWritable])
+        AvroUtil.convertRecordRDDToRowRDD(wrappedAvroRDD.keys.map(_.datum()), requiredColumns)
+      }))
     }
   }
 
