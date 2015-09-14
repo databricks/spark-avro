@@ -300,6 +300,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("convert generic records to dataframe") {
+    val record = new SerializableRecord()
+    record.put("content", "abc")
+    val recordRdd = sqlContext.sparkContext.parallelize(Seq[GenericRecord](record))
+    val df = sqlContext.createDataFrame(recordRdd, record.getSchema)
+    assert(df.count() == 1)
+  }
+
   test("converting some specific sparkSQL types to avro") {
     TestUtils.withTempDir { tempDir =>
       val testSchema = StructType(Seq(
