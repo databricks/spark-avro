@@ -32,7 +32,7 @@ import org.apache.spark.sql.types._
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
  */
-private[avro] object SchemaConverters {
+private object SchemaConverters {
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
