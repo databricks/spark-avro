@@ -431,6 +431,15 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       df.write.avro(tempSaveDir)
       val newDf = sqlContext.read.avro(tempSaveDir)
       assert(newDf.count == 8)
+
+      val tempSaveDir1 = s"$tempDir/sa,ve1/"
+      df.write.avro(tempSaveDir1)
+
+      // this ugly hack is sqlContext.avroFile except i would like to pass in multiple paths
+      // with SPARK-10185 multiple paths will work again with sqlContext.read.avro
+      val newDf1 = sqlContext.baseRelationToDataFrame(
+        new AvroRelation(Array("file://" + tempSaveDir, "file://" + tempSaveDir1), None, None, Map.empty)(sqlContext))
+      assert(newDf1.count == 16)
     }
   }
 }
