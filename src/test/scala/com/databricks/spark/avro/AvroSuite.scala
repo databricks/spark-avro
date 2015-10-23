@@ -440,6 +440,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val newDf1 = sqlContext.baseRelationToDataFrame(
         new AvroRelation(Array("file://" + tempSaveDir, "file://" + tempSaveDir1), None, None, Map.empty)(sqlContext))
       assert(newDf1.count == 16)
+
+      val newDf2 = sqlContext.read.avro(s"$tempDir/sa,ve*/")
+      assert(newDf2.count == 16)
     }
   }
 }
