@@ -30,10 +30,11 @@ import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
+import org.apache.hadoop.mapred.{ JobConf, FileInputFormat }
 import org.apache.hadoop.mapreduce.Job
 
 import org.apache.spark.Logging
-import org.apache.spark.rdd.{RDD, UnionRDD}
+import org.apache.spark.rdd.{RDD, HadoopRDD}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
@@ -116,69 +117,72 @@ private[avro] class AvroRelation(
     if (inputs.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
-      new UnionRDD[Row](sqlContext.sparkContext,
-      inputs.map(path =>
-        sqlContext.sparkContext.hadoopFile(
-          path.getPath.toString,
-          classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
-          classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
-          classOf[org.apache.hadoop.io.NullWritable]).keys.map(_.datum())
-          .mapPartitions { records =>
-            if (records.isEmpty) {
-              Iterator.empty
-            } else {
-              val firstRecord = records.next()
-              val superSchema = firstRecord.getSchema // the schema of the actual record
-              // the fields that are actually required along with their converters
-              val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
+      // i have to do this the ugly way because hadoopFile only exposes one path (why?)
+      val job = new JobConf(sqlContext.sparkContext.hadoopConfiguration)
+      FileInputFormat.setInputPaths(job, inputs.map(_.getPath).toArray: _*)
+      new HadoopRDD(
+        sqlContext.sparkContext,
+        job,
+        classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
+        classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
+        classOf[org.apache.hadoop.io.NullWritable],
+        sqlContext.sparkContext.defaultMinPartitions
+      ).keys.map(_.datum()).mapPartitions { records =>
+        if (records.isEmpty) {
+          Iterator.empty
+        } else {
+          val firstRecord = records.next()
+          val superSchema = firstRecord.getSchema // the schema of the actual record
+          // the fields that are actually required along with their converters
+          val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
 
-              new Iterator[Row] {
-                private[this] val baseIterator = records
-                private[this] var currentRecord = firstRecord
-                private[this] val rowBuffer = new Array[Any](requiredColumns.length)
-                // A micro optimization to avoid allocating a WrappedArray per row.
-                private[this] val bufferSeq = rowBuffer.toSeq
+          new Iterator[Row] {
+            private[this] val baseIterator = records
+            private[this] var currentRecord = firstRecord
+            private[this] val rowBuffer = new Array[Any](requiredColumns.length)
+            // A micro optimization to avoid allocating a WrappedArray per row.
+            private[this] val bufferSeq = rowBuffer.toSeq
 
-                // An array of functions that pull a column out of an avro record and puts the
-                // converted value into the correct slot of the rowBuffer.
-                private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
-                  case (columnName, idx) =>
-                    // Spark SQL should not pass us invalid columns
-                    val field =
-                      avroFieldMap.getOrElse(
-                        columnName,
-                        throw new AssertionError(s"Invalid column $columnName"))
-                    val converter = SchemaConverters.createConverterToSQL(field.schema)
+            // An array of functions that pull a column out of an avro record and puts the
+            // converted value into the correct slot of the rowBuffer.
+            private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
+              case (columnName, idx) =>
+                // Spark SQL should not pass us invalid columns
+                val field =
+                  avroFieldMap.getOrElse(
+                    columnName,
+                    throw new AssertionError(s"Invalid column $columnName"))
+                val converter = SchemaConverters.createConverterToSQL(field.schema)
 
-                    (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
-                }
+                (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
+            }
 
-                private def advanceNextRecord() = {
-                  if (baseIterator.hasNext) {
-                    currentRecord = baseIterator.next()
-                    true
-                  } else {
-                    false
-                  }
-                }
-
-                def hasNext = {
-                  currentRecord != null || advanceNextRecord()
-                }
-
-                def next() = {
-                  assert(hasNext)
-                  var i = 0
-                  while (i < fieldExtractors.length) {
-                    fieldExtractors(i)(currentRecord)
-                    i += 1
-                  }
-                  currentRecord = null
-                  Row.fromSeq(bufferSeq)
-                }
+            private def advanceNextRecord() = {
+              if (baseIterator.hasNext) {
+                currentRecord = baseIterator.next()
+                true
+              } else {
+                false
               }
             }
-        }))
+
+            def hasNext = {
+              currentRecord != null || advanceNextRecord()
+            }
+
+            def next() = {
+              assert(hasNext)
+              var i = 0
+              while (i < fieldExtractors.length) {
+                fieldExtractors(i)(currentRecord)
+                i += 1
+              }
+              currentRecord = null
+              Row.fromSeq(bufferSeq)
+            }
+          }
+        }
+      }
     }
   }
 

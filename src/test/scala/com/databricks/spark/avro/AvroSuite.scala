@@ -419,4 +419,18 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(newDf.count == 8)
     }
   }
+
+  test("test save and load with comma in path") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(episodesFile)
+      assert(df.count == 8)
+
+      val tempSaveDir = s"$tempDir/sa,ve/"
+
+      df.write.avro(tempSaveDir)
+      val newDf = sqlContext.read.avro(tempSaveDir)
+      assert(newDf.count == 8)
+    }
+  }
 }
