@@ -31,7 +31,7 @@ Using Maven:
 
 ```xml
 <dependency>
-    <groupId>com.databricks<groupId>
+    <groupId>com.databricks</groupId>
     <artifactId>spark-avro_2.10</artifactId>
     <version>2.0.1</version>
 </dependency>
