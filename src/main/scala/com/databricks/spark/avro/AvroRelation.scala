@@ -119,13 +119,15 @@ private[avro] class AvroRelation(
       val inputAvroSchema = Schema.createRecord(recordName, null, recordNamespace, false)
       inputAvroSchema.setFields(requiredColumns.map{ col =>
         val existing = avroSchema.getField(col)
-        val field = new Schema.Field(existing.name, existing.schema, null, existing.defaultValue, existing.order)
+        val field = new Schema.Field(existing.name, existing.schema, null, existing.defaultValue, 
+          existing.order)
         existing.aliases.asScala.foreach(field.addAlias(_))
         field
       }.toList.asJava)
       // i have to do this the ugly way because hadoopFile only exposes one path (why?)
       job.set(org.apache.avro.mapred.AvroJob.INPUT_SCHEMA, inputAvroSchema.toString)
-      val fieldConverters = inputAvroSchema.getFields.asScala.map(f => SchemaConverters.createConverterToSQL(f.schema))
+      val fieldConverters = inputAvroSchema.getFields.asScala.map{ f =>
+        SchemaConverters.createConverterToSQL(f.schema) }
       FileInputFormat.setInputPaths(job, inputs.map(_.getPath).toArray: _*)
 
       new HadoopRDD(
@@ -137,7 +139,8 @@ private[avro] class AvroRelation(
         sqlContext.sparkContext.defaultMinPartitions
       ).keys.map{ wrapper => 
         val record = wrapper.datum()
-        val row = Row.fromSeq(fieldConverters.zipWithIndex.map{ case (converter, i) => converter(record.get(i)) })
+        val row = Row.fromSeq(fieldConverters.zipWithIndex.map{ case (converter, i) => 
+          converter(record.get(i)) })
         row
       }
     }
