@@ -47,7 +47,8 @@ private[avro] class AvroRelation(
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
-  private val schemaFromLastPath = parameters.get("schemaFromLastPath").map(_.toBoolean).getOrElse(false)
+  private val schemaFromLastPath = parameters.get("schemaFromLastPath")
+    .map(_.toBoolean).getOrElse(false)
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
