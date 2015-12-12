@@ -24,14 +24,14 @@ You can link against this library (for Spark 1.4+) in your program at the follow
 Using SBT:
 
 ```
-libraryDependenicies += "com.databricks" %% "spark-avro" % "2.0.1"
+libraryDependencies += "com.databricks" %% "spark-avro" % "2.0.1"
 ```
 
 Using Maven:
 
 ```xml
 <dependency>
-    <groupId>com.databricks<groupId>
+    <groupId>com.databricks</groupId>
     <artifactId>spark-avro_2.10</artifactId>
     <version>2.0.1</version>
 </dependency>
