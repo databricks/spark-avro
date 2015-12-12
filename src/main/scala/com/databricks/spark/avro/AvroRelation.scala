@@ -47,12 +47,14 @@ private[avro] class AvroRelation(
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
+  private val schemaFromLastPath = parameters.get("schemaFromLastPath").map(_.toBoolean).getOrElse(false)
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
-    case Array(head, _*) => newReader(head)(_.getSchema)
     case Array() =>
       throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
+    case array if schemaFromLastPath => newReader(array.last)(_.getSchema)
+    case array => newReader(array.head)(_.getSchema)
   }
 
   /**
@@ -61,10 +63,8 @@ private[avro] class AvroRelation(
    *
    * @since 1.4.0
    */
-  override def dataSchema: StructType = maybeDataSchema match {
-    case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
-  }
+  override def dataSchema: StructType = maybeDataSchema.getOrElse(
+    SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType])
 
   /**
    * Prepares a write job and returns an [[OutputWriterFactory]].  Client side job preparation can
