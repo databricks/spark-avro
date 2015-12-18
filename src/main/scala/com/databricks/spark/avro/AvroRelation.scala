@@ -49,13 +49,19 @@ private[avro] class AvroRelation(
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
   private val schemaFromLastPath = parameters.get("schemaFromLastPath")
     .map(_.toBoolean).getOrElse(false)
+  private val schemaFromPath = parameters.get("schemaFromPath")
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
-  private lazy val avroSchema = paths match {
-    case Array() =>
-      throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
-    case array if schemaFromLastPath => newReader(array.last)(_.getSchema)
-    case array => newReader(array.head)(_.getSchema)
+  private lazy val avroSchema = {
+    val schemaPath = schemaFromPath.getOrElse{
+      paths match {
+        case Array() =>
+          throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
+        case array if schemaFromLastPath => array.last
+        case array => array.head
+      }
+    }
+    newReader(schemaPath)(_.getSchema)
   }
 
   /**

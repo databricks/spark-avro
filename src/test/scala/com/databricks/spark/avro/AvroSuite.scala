@@ -420,6 +420,25 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("test save and load with path specified for schema") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(episodesFile)
+      assert(df.count == 8)
+
+      val tempSaveDir = s"$tempDir/save/"
+
+      df.select(df("title"), df("doctor")).write.avro(tempSaveDir)
+      val newDf1 = sqlContext.read.option("schemaFromPath", episodesFile).avro(tempSaveDir)
+      assert(newDf1.count == 8)
+      assert(newDf1.schema == df.schema)
+      val newDf2 = sqlContext.read.avro(tempSaveDir)
+      assert(newDf2.count == 8)
+      assert(newDf2.schema == StructType(Array(StructField("title", StringType, true), StructField("doctor", IntegerType, true))))
+    }
+  }
+
+
   test("test save and load with comma in path") {
     // Test if load works as expected
     TestUtils.withTempDir { tempDir =>
