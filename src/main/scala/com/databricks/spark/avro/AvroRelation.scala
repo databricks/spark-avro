@@ -56,7 +56,8 @@ private[avro] class AvroRelation(
     val schemaPath = schemaFromPath.getOrElse{
       paths match {
         case Array() =>
-          throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
+          throw new java.io.FileNotFoundException(
+            "Cannot infer the schema when no files are present.")
         case array if schemaFromLastPath => array.last
         case array => array.head
       }
