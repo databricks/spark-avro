@@ -15,6 +15,8 @@
  */
 package com.databricks.spark
 
+import org.apache.avro.Schema
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
 
 package object avro {
@@ -43,5 +45,15 @@ package object avro {
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
+  }
+
+  /**
+    * Adds a method, `schema`, to DataFrameReader that allows you to specific avro schema
+    */
+  implicit class AvroDataFrameReaderSchema(reader: DataFrameReader) {
+    def schema(avroSchema: Schema): DataFrameReader = {
+      val sqlSchema = SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+      reader.schema(sqlSchema)
+    }
   }
 }
