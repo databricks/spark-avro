@@ -82,7 +82,7 @@ private object SchemaConverters {
           }
         } else avroSchema.getTypes.map(_.getType) match {
           case Seq(t1) =>
-            toSqlType(avroSchema.getTypes.get(0)).copy(nullable = true)
+            toSqlType(avroSchema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
