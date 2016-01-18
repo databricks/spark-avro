@@ -18,8 +18,6 @@ val testHadoopVersion = settingKey[String]("The version of Hadoop to test agains
 
 testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
 
-resolvers += "Spark 1.5.0 RC2 Staging" at "https://repository.apache.org/content/repositories/orgapachespark-1141"
-
 spAppendScalaVersion := true
 
 spIncludeMaven := true
