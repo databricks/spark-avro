@@ -29,9 +29,6 @@ matrix:
     - jdk: openjdk7
       scala: 2.10.4
       env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="1.6.0"
-    - jdk: openjdk7
-      scala: 2.10.4
-      env: TEST_HADOOP_VERSION="1.2.1" TEST_SPARK_VERSION="1.6.0"
     # Spark 1.5.0 and Scala 2.11
     - jdk: openjdk7
       scala: 2.11.7
