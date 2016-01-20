@@ -81,6 +81,8 @@ private object SchemaConverters {
             toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
           }
         } else avroSchema.getTypes.map(_.getType) match {
+          case Seq(t1) =>
+            toSqlType(avroSchema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
@@ -176,6 +178,8 @@ private object SchemaConverters {
             createConverterToSQL(Schema.createUnion(remainingUnionTypes))
           }
         } else schema.getTypes.map(_.getType) match {
+          case Seq(t1) =>
+            createConverterToSQL(schema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             (item: Any) => {
               item match {

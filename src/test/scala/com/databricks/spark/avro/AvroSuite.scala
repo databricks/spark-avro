@@ -92,6 +92,29 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("Union of a single type") {
+    TestUtils.withTempDir { dir =>
+      val UnionOfOne = Schema.createUnion(List(Schema.create(Type.INT)))
+      val fields = Seq(new Field("field1", UnionOfOne, "doc", null))
+      val schema = Schema.createRecord("name", "docs", "namespace", false)
+      schema.setFields(fields)
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](schema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(schema, new File(s"$dir.avro"))
+      val avroRec = new GenericData.Record(schema)
+
+      avroRec.put("field1", 8)
+
+      dataFileWriter.append(avroRec)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+
+      val df = sqlContext.read.avro(s"$dir.avro")
+      assert(df.first() == Row(8))
+    }
+  }
+
   test("Incorrect Union Type") {
     TestUtils.withTempDir { dir =>
       val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
