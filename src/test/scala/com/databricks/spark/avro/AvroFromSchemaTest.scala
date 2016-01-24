@@ -15,21 +15,23 @@
  */
 package com.databricks.spark.avro
 
-import java.nio.file.{Files, Path}
+import java.io.File
 
 import com.databricks.spark.avro.example.User
 import org.apache.commons.io.FileUtils
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 class AvroFromSchemaTest extends FlatSpec with BeforeAndAfter with Matchers {
 
-  var tempDir: Path = _
-  var sc: SparkContext
+  var tempDir: File = _
+  var sc: SparkContext = _
 
   before {
-    tempDir = Files.createTempDirectory("spark-avro-test")
+    val baseTmp = System.getProperty("java.io.tmpdir")
+    val testSuffix = s"spark-avro-test-${System.currentTimeMillis()}"
+    tempDir = new File(baseTmp, testSuffix)
     val conf = new SparkConf()
       .setMaster("local[2]")
       .setAppName("app")
@@ -39,7 +41,7 @@ class AvroFromSchemaTest extends FlatSpec with BeforeAndAfter with Matchers {
   }
 
   after {
-    FileUtils.deleteDirectory(tempDir.toFile)
+    FileUtils.deleteDirectory(tempDir)
     sc.stop()
   }
 
@@ -54,19 +56,19 @@ class AvroFromSchemaTest extends FlatSpec with BeforeAndAfter with Matchers {
     df
       .write
       .option("avro.output.schema.class", classOf[User].getCanonicalName)
-      .avro(s"${tempDir.toAbsolutePath}/test")
+      .avro(s"${tempDir.getAbsolutePath}/test")
 
     val ddf = sqlContext
       .read
       .option("avro.input.schema.class", classOf[User].getCanonicalName)
-      .avro(s"${tempDir.toAbsolutePath}/test")
+      .avro(s"${tempDir.getAbsolutePath}/test")
 
-    ddf.schema should be (computedSchema)
+    ddf.schema should be(computedSchema)
 
     val dumpedData = ddf
       .map(row => new User(row.getString(0), row.getInt(1), row.getString(2)))
       .collect()
 
-    dumpedData.toList should be (users)
+    dumpedData.toList should be(users)
   }
 }
