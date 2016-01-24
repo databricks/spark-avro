@@ -18,15 +18,15 @@ package com.databricks.spark.avro
 import java.nio.ByteBuffer
 import java.util.HashMap
 
-import scala.collection.JavaConversions._
-
+import org.apache.avro.Schema.Type._
+import org.apache.avro.SchemaBuilder._
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
-import org.apache.avro.SchemaBuilder._
-import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+
+import scala.collection.JavaConversions._
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice

@@ -15,7 +15,13 @@
  */
 package com.databricks.spark
 
-import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.avro.generic.GenericRecord
+import org.apache.avro.specific.{SpecificData, SpecificRecord}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql._
+
+import scala.reflect._
 
 package object avro {
 
@@ -27,6 +33,17 @@ package object avro {
     def avroFile(filePath: String, minPartitions: Int = 0) =
       sqlContext.baseRelationToDataFrame(
         new AvroRelation(Array(filePath), None, None, Map.empty)(sqlContext))
+
+    def avroFileFromType[T <: SpecificRecord: ClassTag](filePath: String,
+                                                        minPartitions: Int = 0): DataFrame = {
+      import scala.reflect._
+      val clazz = classTag[T].runtimeClass
+      val avroSchema = SpecificData.get().getSchema(clazz)
+      val sqlSchema = SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+      sqlContext.baseRelationToDataFrame(
+        new AvroRelation(Array(filePath), Some(sqlSchema), None, Map.empty)(sqlContext)
+      )
+    }
   }
 
   /**
@@ -35,6 +52,25 @@ package object avro {
    */
   implicit class AvroDataFrameWriter(writer: DataFrameWriter) {
     def avro: String => Unit = writer.format("com.databricks.spark.avro").save
+  }
+
+  /**
+    * Adds a method `toAvroDF` to a compatible RDD
+    */
+  implicit class AvroDataFrameCreator[A <: GenericRecord with SpecificRecord: ClassTag](rdd: RDD[A])
+  {
+    def toAvroDF(sqLContext: SQLContext) : DataFrame = {
+      val clazz = classTag[A].runtimeClass
+      val avroSchema = SpecificData.get().getSchema(clazz)
+      val sqlSchema = SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+      val transformed = rdd.map { row =>
+        val values = for (field <- sqlSchema.fields) yield {
+          row.get(field.name)
+        }
+        Row(values:_*)
+      }
+      sqLContext.createDataFrame(transformed, sqlSchema)
+    }
   }
 
   /**
