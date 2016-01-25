@@ -18,11 +18,9 @@ package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
 import java.util.zip.Deflater
-
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-
 import com.google.common.base.Objects
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
@@ -48,6 +46,7 @@ private[avro] class AvroRelation(
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
+  lazy val withAliasesFields = parameters.getOrElse("withAliases", "false").toBoolean
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
@@ -64,7 +63,8 @@ private[avro] class AvroRelation(
    */
   override def dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+    case None =>
+      SchemaConverters.toSqlType(avroSchema, withAliasesFields).dataType.asInstanceOf[StructType]
   }
 
   /**
@@ -113,6 +113,7 @@ private[avro] class AvroRelation(
    * contain `requiredColumns`
    */
   override def buildScan(requiredColumns: Array[String], inputs: Array[FileStatus]): RDD[Row] = {
+    val withalias = withAliasesFields
     if (inputs.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
@@ -130,7 +131,14 @@ private[avro] class AvroRelation(
               val firstRecord = records.next()
               val superSchema = firstRecord.getSchema // the schema of the actual record
               // the fields that are actually required along with their converters
+
               val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
+              val aliasFields = if (withalias) {
+                superSchema.getFields.flatMap(f => f.aliases.map(a => a -> f))
+              } else {
+                Nil
+              }
+              val allFields = (avroFieldMap ++ aliasFields).toMap
 
               new Iterator[Row] {
                 private[this] val baseIterator = records
@@ -145,7 +153,7 @@ private[avro] class AvroRelation(
                   case (columnName, idx) =>
                     // Spark SQL should not pass us invalid columns
                     val field =
-                      avroFieldMap.getOrElse(
+                      allFields.getOrElse(
                         columnName,
                         throw new AssertionError(s"Invalid column $columnName"))
                     val converter = SchemaConverters.createConverterToSQL(field.schema)

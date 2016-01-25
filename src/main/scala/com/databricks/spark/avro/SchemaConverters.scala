@@ -16,15 +16,18 @@
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
+import java.util.ArrayList
 import java.util.HashMap
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
@@ -34,12 +37,17 @@ import org.apache.spark.sql.types._
  */
 private object SchemaConverters {
 
+  val METADATA_KEY_DOC = "doc";
+  val METADATA_KEY_ALIASES = "aliases";
+  val METADATA_KEY_PARENT = "_parent";
+
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
   /**
    * This function takes an avro schema and returns a sql schema.
    */
-  private[avro] def toSqlType(avroSchema: Schema): SchemaType = {
+  private[avro] def toSqlType(avroSchema: Schema, schemaWithAlias: Boolean = false): SchemaType = {
+    var aliasFields = ListBuffer[StructField]()
     avroSchema.getType match {
       case INT => SchemaType(IntegerType, nullable = false)
       case STRING => SchemaType(StringType, nullable = false)
@@ -54,9 +62,23 @@ private object SchemaConverters {
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
           val schemaType = toSqlType(f.schema())
-          StructField(f.name, schemaType.dataType, schemaType.nullable)
+          var meta = new MetadataBuilder()
+          if (f.doc != null) meta.putString(METADATA_KEY_DOC, f.doc)
+          if (f.aliases() != null && f.aliases().size() > 0) {
+            val aliasArray = new Array[String](f.aliases().size())
+            meta.putString(METADATA_KEY_PARENT, f.name)
+            f.aliases copyToArray(aliasArray)
+            meta.putStringArray(METADATA_KEY_ALIASES, aliasArray);
+            if (schemaWithAlias) {
+              for (aliasFieldName <- aliasArray) {
+                aliasFields += StructField(aliasFieldName, schemaType.dataType,
+                  schemaType.nullable, meta.build())
+              }
+            }
+          }
+          StructField(f.name, schemaType.dataType, schemaType.nullable, meta.build())
         }
-
+        fields.addAll(aliasFields)
         SchemaType(StructType(fields), nullable = false)
 
       case ARRAY =>
@@ -104,9 +126,22 @@ private object SchemaConverters {
       schemaBuilder: RecordBuilder[T],
       recordNamespace: String): T = {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
-    structType.fields.foreach { field =>
-      val newField = fieldsAssembler.name(field.name).`type`()
 
+    val nonAliasStructFields = structType.fields.filterNot(field =>
+      field.metadata.contains(METADATA_KEY_ALIASES)
+        && field.metadata.contains(METADATA_KEY_PARENT)
+          && !field.metadata.getString(METADATA_KEY_PARENT).equals(field.name))
+
+    nonAliasStructFields.foreach { field =>
+      var newFieldBuilder = fieldsAssembler.name(field.name)
+      if (field.metadata contains (METADATA_KEY_DOC)) {
+        newFieldBuilder = newFieldBuilder.doc(field.metadata.getString(METADATA_KEY_DOC))
+      }
+      if (field.metadata.contains(METADATA_KEY_ALIASES)) {
+        newFieldBuilder = newFieldBuilder
+          .aliases(field.metadata.getStringArray(METADATA_KEY_ALIASES): _*)
+      }
+      val newField = newFieldBuilder.`type`()
       if (field.nullable) {
         convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
           .noDefault

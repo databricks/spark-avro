@@ -4,25 +4,32 @@
   "fields" : [{
     "name" : "string",
     "type" : "string",
-    "doc"  : "Meaningless string of characters"
+    "doc"  : "Meaningless string of characters",
+    "aliases" : ["string_alias1", "string_alias2"]
   }, {
     "name" : "simple_map",
-    "type" : {"type": "map", "values": "int"}
+    "type" : {"type": "map", "values": "int"},
+    "aliases" : ["map_alias"]
   }, {
     "name" : "complex_map",
-    "type" : {"type": "map", "values": {"type": "map", "values": "string"}}
+    "type" : {"type": "map", "values": {"type": "map", "values": "string"}},
+    "aliases" : ["complex_map_alias"]
   }, {
     "name" : "union_string_null",
-    "type" : ["null", "string"]
+    "type" : ["null", "string"],
+    "aliases" : ["union_string_alias"]
   }, {
     "name" : "union_int_long_null",
-    "type" : ["int", "long", "null"]
+    "type" : ["int", "long", "null"],
+    "aliases" : ["union_int_alias"]
   }, {
     "name" : "union_float_double",
-    "type" : ["float", "double"]
+    "type" : ["float", "double"],
+    "aliases" : ["union_float_alias1", "union_float_alias2"]
   }, {
     "name": "fixed3",
-    "type": {"type": "fixed", "size": 3, "name": "fixed3"}
+    "type": {"type": "fixed", "size": 3, "name": "fixed3"},
+    "aliases" : ["fixed3_alias"]
   }, {
     "name": "fixed2",
     "type": {"type": "fixed", "size": 2, "name": "fixed2"}
@@ -31,7 +38,8 @@
     "type": { "type": "enum",
               "name": "Suit",
               "symbols" : ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"]
-            }
+            },
+    "aliases" : ["enum_alias"]
   }, {
     "name": "record",
     "type": {
@@ -40,14 +48,17 @@
       "aliases": ["RecordAlias"],
       "fields" : [{
         "name": "value_field",
-        "type": "string"
+        "type": "string",
+        "aliases" : ["value_field_alias"]
       }]
     }
   }, {
     "name": "array_of_boolean",
-    "type": {"type": "array", "items": "boolean"}
+    "type": {"type": "array", "items": "boolean"},
+    "aliases" : ["array_of_boolean_alias"]
   }, {
     "name": "bytes",
-    "type": "bytes"
+    "type": "bytes",
+    "aliases" : ["bytes_alias"]
   }]
 }

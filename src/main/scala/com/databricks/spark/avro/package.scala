@@ -16,6 +16,7 @@
 package com.databricks.spark
 
 import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.spark.sql.DataFrame
 
 package object avro {
 

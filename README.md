@@ -85,8 +85,6 @@ In addition to the types listed above, `spark-avro` supports reading of three ty
 2. `union(float, double)`
 3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
 
-At the moment, `spark-avro` ignores docs, aliases and other properties present in the Avro file.
-
 ## Supported types for Spark SQL -> Avro conversion
 
 `spark-avro` supports writing of all Spark SQL types into Avro. For most types, the mapping from Spark types to Avro types is straightforward (e.g. IntegerType gets converted to int); however, there are a few special cases which are listed below:
@@ -181,6 +179,31 @@ val namespace = "com.databricks.spark.avro"
 val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
 df.write.options(parameters).avro("/tmp/output")
+```
+
+To include extra columns when aliases are specified in the schema, set withAliases to true, as follows:
+```
+val df = sqlContext.read.format("com.databricks.spark.avro").option("withAliases", "true").load("test.avro")
+```
+The same can be done using OPTIONS passed to Spark SQL DDL:
+```
+CREATE TABLE mytable USING com.databricks.spark.avro OPTIONS(path "test.avro", withAliases "true");
+```
+While saving, 'aliases' metadata in DataFrame schema will be stored in `aliases` of avro file.
+For example, 'column1' of DataFrame schema has 'aliases' metadata and returning array of aliases fields.
+```
+test.schema.apply("column1").metadata.getStringArray("aliases")
+res5: Array[String] = Array(string_alias1, string_alias2)
+```
+While storing Dataframe as Avro, 'string_alias1' and 'string_alias2' will be aliases of 'column1' in Avro file.
+
+#### Extra Metadata:
+
+Avro schema doc:
+Avro schema's each field 'doc' will be preserved in DataFrame's schema metadata.
+```
+scala> test.schema.apply("column_name").metadata.getString("doc")
+res3: String = Meaningless string of characters
 ```
 
 ### Java API

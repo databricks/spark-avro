@@ -13,7 +13,7 @@ import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SQLContext, Row}
+import org.apache.spark.sql.{AnalysisException, SQLContext, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -293,6 +293,28 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(sqlContext.sql("SELECT * FROM avroTable").collect().length === 8)
   }
 
+  test("sql test without alias") {
+    intercept[AnalysisException] {
+      sqlContext.sql(
+        s"""
+         |CREATE TEMPORARY TABLE avroTable
+         |USING com.databricks.spark.avro
+         |OPTIONS (path "$testFile", withAliases "false")
+      """.stripMargin.replaceAll("\n", " "))
+      assert(sqlContext.sql("SELECT string_alias1 FROM avroTable").collect().length === 3)
+    }
+  }
+
+  test("sql test with alias") {
+    sqlContext.sql(
+      s"""
+         |CREATE TEMPORARY TABLE avroTable
+         |USING com.databricks.spark.avro
+         |OPTIONS (path "$testFile", withAliases "true")
+      """.stripMargin.replaceAll("\n", " "))
+    assert(sqlContext.sql("SELECT string_alias1 FROM avroTable").collect().length === 3)
+  }
+
   test("conversion to avro and back") {
     // Note that test.avro includes a variety of types, some of which are nullable. We expect to
     // get the same values back.
@@ -440,6 +462,56 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       df.write.avro(tempSaveDir)
       val newDf = sqlContext.read.avro(tempSaveDir)
       assert(newDf.count == 8)
+    }
+  }
+
+  test("test doc in meta") {
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(testFile)
+      df.schema.fields(0).metadata.getString(SchemaConverters.METADATA_KEY_DOC)
+      for (x <- df.schema.fields) {
+        if (x.name == "title") {
+          assert("episode title" == x.metadata.getString(SchemaConverters.METADATA_KEY_DOC))
+        } else if (x.name == "doctor") {
+          assert("main actor playing the Doctor in episode" ==
+            x.metadata.getString(SchemaConverters.METADATA_KEY_DOC))
+        } else if (x.name == "air_date") {
+          assert("initial date" == x.metadata.getString(SchemaConverters.METADATA_KEY_DOC))
+        }
+      }
+    }
+  }
+
+  test("test aliases in meta") {
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(testFile)
+      df.schema("string").metadata.getStringArray(SchemaConverters.METADATA_KEY_ALIASES) === Array("string_alias1", "string_alias1")
+    }
+  }
+
+  test("test without aliases columns in data frame") {
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(testFile)
+      val fieldArray = df.schema.fieldNames;
+      assert(fieldArray contains "string")
+      assert(!(fieldArray contains "string_alias1"))
+      assert(!(fieldArray contains "string_alias2"))
+      assert(!(fieldArray contains "map_alias"))
+      assert(!(fieldArray contains "enum_alias"))
+      assert(!(fieldArray contains "union_int_alias"))
+    }
+  }
+
+    test("test with aliases columns in data frame") {
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.format("com.databricks.spark.avro").option("withAliases", "true").load(testFile)
+      val fieldArray = df.schema.fieldNames
+      assert(fieldArray contains "string")
+      assert(fieldArray contains "string_alias1")
+      assert(fieldArray contains "string_alias2")
+      assert(fieldArray contains "map_alias")
+      assert(fieldArray contains "enum_alias")
+      assert(fieldArray contains "union_int_alias")
     }
   }
 }

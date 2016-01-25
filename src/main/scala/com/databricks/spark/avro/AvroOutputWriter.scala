@@ -153,7 +153,12 @@ private[avro] class AvroOutputWriter(
 
             while (convertersIterator.hasNext) {
               val converter = convertersIterator.next()
-              record.put(fieldNamesIterator.next(), converter(rowIterator.next()))
+              val fieldName = fieldNamesIterator.next()
+              if (schema.getField(fieldName) != null) {
+                record.put(fieldName, converter(rowIterator.next()))
+              } else {
+                rowIterator.next()
+              }
             }
             record
           }
