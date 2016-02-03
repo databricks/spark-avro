@@ -48,8 +48,8 @@ package object avro {
   }
 
   /**
-    * Adds a method, `schema`, to DataFrameReader that allows you to specific avro schema
-    */
+   * Adds a method, `schema`, to DataFrameReader that allows you to specify avro schema
+   */
   implicit class AvroDataFrameReaderSchema(reader: DataFrameReader) {
     def schema(avroSchema: Schema): DataFrameReader = {
       val sqlSchema = SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
