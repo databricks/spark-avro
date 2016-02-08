@@ -39,7 +39,7 @@ object SchemaConverters {
   /**
    * This function takes an avro schema and returns a sql schema.
    */
-  def toSqlType(avroSchema: Schema): SchemaType = {
+  def toSqlType(avroSchema: Schema, unsupportedAsString: Boolean): SchemaType = {
     avroSchema.getType match {
       case INT => SchemaType(IntegerType, nullable = false)
       case STRING => SchemaType(StringType, nullable = false)
@@ -53,20 +53,20 @@ object SchemaConverters {
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
-          val schemaType = toSqlType(f.schema())
+          val schemaType = toSqlType(f.schema(), unsupportedAsString)
           StructField(f.name, schemaType.dataType, schemaType.nullable)
         }
 
         SchemaType(StructType(fields), nullable = false)
 
       case ARRAY =>
-        val schemaType = toSqlType(avroSchema.getElementType)
+        val schemaType = toSqlType(avroSchema.getElementType, unsupportedAsString)
         SchemaType(
           ArrayType(schemaType.dataType, containsNull = schemaType.nullable),
           nullable = false)
 
       case MAP =>
-        val schemaType = toSqlType(avroSchema.getValueType)
+        val schemaType = toSqlType(avroSchema.getValueType, unsupportedAsString)
         SchemaType(
           MapType(StringType, schemaType.dataType, valueContainsNull = schemaType.nullable),
           nullable = false)
@@ -76,20 +76,26 @@ object SchemaConverters {
           // In case of a union with null, eliminate it and make a recursive call
           val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.get(0)).copy(nullable = true)
+            toSqlType(remainingUnionTypes.get(0), unsupportedAsString).copy(nullable = true)
           } else {
-            toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
+            toSqlType(Schema.createUnion(remainingUnionTypes), unsupportedAsString)
+              .copy(nullable = true)
           }
         } else avroSchema.getTypes.map(_.getType) match {
           case Seq(t1) =>
-            toSqlType(avroSchema.getTypes.get(0))
+            toSqlType(avroSchema.getTypes.get(0), unsupportedAsString)
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
+          case other if unsupportedAsString =>
+            SchemaType(StringType, nullable = false)
           case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
+
+      case other if unsupportedAsString =>
+        SchemaType(StringType, nullable = false)
 
       case other => throw new UnsupportedOperationException(s"Unsupported type $other")
     }
@@ -122,7 +128,9 @@ object SchemaConverters {
    * Returns a function that is used to convert avro types to their
    * corresponding sparkSQL representations.
    */
-  private[avro] def createConverterToSQL(schema: Schema): Any => Any = {
+  private[avro] def createConverterToSQL(
+      schema: Schema,
+      unsupportedAsString: Boolean): Any => Any = {
     schema.getType match {
       // Avro strings are in Utf8, so we have to call toString on them
       case STRING | ENUM => (item: Any) => if (item == null) null else item.toString
@@ -142,7 +150,8 @@ object SchemaConverters {
         javaBytes
       }
       case RECORD =>
-        val fieldConverters = schema.getFields.map(f => createConverterToSQL(f.schema))
+        val fieldConverters =
+          schema.getFields.map(f => createConverterToSQL(f.schema, unsupportedAsString))
         (item: Any) => if (item == null) {
           null
         } else {
@@ -156,14 +165,14 @@ object SchemaConverters {
           Row.fromSeq(converted.toSeq)
         }
       case ARRAY =>
-        val elementConverter = createConverterToSQL(schema.getElementType)
+        val elementConverter = createConverterToSQL(schema.getElementType, unsupportedAsString)
         (item: Any) => if (item == null) {
           null
         } else {
           item.asInstanceOf[GenericData.Array[Any]].map(elementConverter)
         }
       case MAP =>
-        val valueConverter = createConverterToSQL(schema.getValueType)
+        val valueConverter = createConverterToSQL(schema.getValueType, unsupportedAsString)
         (item: Any) => if (item == null) {
           null
         } else {
@@ -173,13 +182,13 @@ object SchemaConverters {
         if (schema.getTypes.exists(_.getType == NULL)) {
           val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            createConverterToSQL(remainingUnionTypes.get(0))
+            createConverterToSQL(remainingUnionTypes.get(0), unsupportedAsString)
           } else {
-            createConverterToSQL(Schema.createUnion(remainingUnionTypes))
+            createConverterToSQL(Schema.createUnion(remainingUnionTypes), unsupportedAsString)
           }
         } else schema.getTypes.map(_.getType) match {
           case Seq(t1) =>
-            createConverterToSQL(schema.getTypes.get(0))
+            createConverterToSQL(schema.getTypes.get(0), unsupportedAsString)
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             (item: Any) => {
               item match {
@@ -196,9 +205,13 @@ object SchemaConverters {
                 case null => null
               }
             }
+          case other if unsupportedAsString =>
+            (item: Any) => if (item == null) null else item.toString
           case other => throw new UnsupportedOperationException(
             s"This mix of union types is not supported (see README): $other")
         }
+      case other if unsupportedAsString =>
+        (item: Any) => if (item == null) null else item.toString
       case other => throw new UnsupportedOperationException(s"invalid avro type: $other")
     }
   }

@@ -49,6 +49,9 @@ private[avro] class AvroRelation(
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
 
+  private val unsupportedAsString =
+    sqlContext.getConf("spark.avro.unsupported.as.string", "false").toBoolean
+
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
   private lazy val avroSchema = paths match {
     case Array(head, _*) => newReader(head)(_.getSchema)
@@ -64,7 +67,8 @@ private[avro] class AvroRelation(
    */
   override def dataSchema: StructType = maybeDataSchema match {
     case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+    case None =>
+      SchemaConverters.toSqlType(avroSchema, unsupportedAsString).dataType.asInstanceOf[StructType]
   }
 
   /**
@@ -116,6 +120,9 @@ private[avro] class AvroRelation(
     if (inputs.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
+      // Make a copy here so we don't have to serialize the entire AvroRelation
+      val unsupportedAsString = this.unsupportedAsString
+
       new UnionRDD[Row](sqlContext.sparkContext,
       inputs.map(path =>
         sqlContext.sparkContext.hadoopFile(
@@ -148,7 +155,8 @@ private[avro] class AvroRelation(
                       avroFieldMap.getOrElse(
                         columnName,
                         throw new AssertionError(s"Invalid column $columnName"))
-                    val converter = SchemaConverters.createConverterToSQL(field.schema)
+                    val converter = SchemaConverters.createConverterToSQL(field.schema,
+                      unsupportedAsString)
 
                     (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
                 }
