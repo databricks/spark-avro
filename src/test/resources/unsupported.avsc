@@ -1,0 +1,9 @@
+{
+  "type" : "record",
+  "name" : "test_schema_with_unsupported_field",
+  "fields" : [{
+    "name" : "union",
+    "type" : ["null", "string", "long", "double", "boolean"],
+    "doc"  : "complex union"
+  }]
+}
