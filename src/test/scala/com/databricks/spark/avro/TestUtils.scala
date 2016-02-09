@@ -22,12 +22,17 @@ import java.util
 
 import scala.collection.immutable.HashSet
 import scala.collection.mutable.ArrayBuffer
+import scala.io.Source
+import scala.reflect.ClassTag
 import scala.util.Random
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.io.Files
 import org.apache.spark.sql.SQLContext
 
 private[avro] object TestUtils {
+  // This object mapper only supports java types
+  val objectMapper = new ObjectMapper
 
   /**
    * This function checks that all records in a file match the original
@@ -150,4 +155,15 @@ private[avro] object TestUtils {
     rand.nextBytes(arrayOfBytes)
     bb.put(arrayOfBytes)
   }
+
+  /**
+    * Reads JSONL (line-separated JSON) file.
+    * @param file The JSONL file.
+    * @tparam T Type of each record in the file. Only java types are supported.
+    * @return Iterator of records.
+    */
+  private[avro] def readJsonl[T: ClassTag](file: String): Iterator[T] =
+    Source.fromFile(file).getLines map { x =>
+      objectMapper.readValue(x, implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]])
+    }
 }

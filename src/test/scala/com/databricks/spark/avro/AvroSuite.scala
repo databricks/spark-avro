@@ -20,6 +20,8 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val unsupportedAvroFile = "src/test/resources/unsupported.avro"
+  val unsupportedJsonlFile = "src/test/resources/unsupported.jsonl"
 
   private var sqlContext: SQLContext = _
 
@@ -440,6 +442,30 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       df.write.avro(tempSaveDir)
       val newDf = sqlContext.read.avro(tempSaveDir)
       assert(newDf.count == 8)
+    }
+  }
+
+  test("fail at unsupported type") {
+    intercept[UnsupportedOperationException] {
+      // Schema of the avro data is in complex_union.avsc
+      sqlContext.read.avro(unsupportedAvroFile)
+    }
+  }
+
+  test("convert unsupported type to string") {
+    sqlContext.setConf("spark.avro.unsupported.as.string", "true")
+
+    try {
+      // Schema of the avro data is in complex_union.avsc
+      val actual = sqlContext.read.avro(unsupportedAvroFile).map(_.getString(0)).collect().toSet
+      val expected = TestUtils.readJsonl[java.util.Map[String, AnyRef]](unsupportedJsonlFile)
+        .map(_.get("union"))
+        .map(x => if (x == null) null else x.toString)
+        .toSet
+
+      assertResult(expected)(actual)
+    } finally {
+      sqlContext.setConf("spark.avro.unsupported.as.string", "false")
     }
   }
 }
