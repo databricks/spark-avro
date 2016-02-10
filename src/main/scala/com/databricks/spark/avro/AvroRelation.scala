@@ -144,15 +144,13 @@ private[avro] class AvroRelation(
                 private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
                   case (columnName, idx) =>
                     // Spark SQL should not pass us invalid columns
-                    try {
-                      val field = avroFieldMap.getOrElse(
-                        columnName,
-                        throw new AssertionError(s"Invalid column $columnName"))
-                      val converter = SchemaConverters.createConverterToSQL(field.schema)
-
-                      (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
-                    } catch {
-                      case ex: AssertionError =>
+                    val fieldOption = avroFieldMap.get(columnName)
+                    fieldOption match {
+                      case Some(field) =>
+                        val converter = SchemaConverters.createConverterToSQL(field.schema)
+                        (record: GenericRecord) =>
+                          rowBuffer(idx) = converter(record.get(field.pos()))
+                      case None =>
                         (record: GenericRecord) => rowBuffer(idx) = null
                     }
                 }
