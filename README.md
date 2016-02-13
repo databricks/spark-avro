@@ -1,4 +1,4 @@
-# Spark SQL Avro Library
+# Avro Data Source for Spark
 
 A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
@@ -11,7 +11,7 @@ This documentation is for Spark 1.4+.
 
 This library has different versions for Spark 1.2, 1.3, and 1.4+:
 
-| Spark Version | `spark-avro` version |
+| Spark Version | Compatible version of Avro Data Source for Spark |
 | ------------- |----------------------|
 | `1.2`         | `0.2.0`              |
 | `1.3`         | `1.0.0`              |
@@ -37,7 +37,7 @@ Using Maven:
 </dependency>
 ```
 
-The `spark-avro` library can also be added to Spark jobs launched through `spark-shell` or `spark-submit` by using the `--packages` command line option.
+This library can also be added to Spark jobs launched through `spark-shell` or `spark-submit` by using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
 ```
@@ -51,9 +51,9 @@ This library is cross-published for Scala 2.11, so 2.11 users should replace 2.1
 
 ## Features
 
-`spark-avro` supports reading and writing of Avro data from Spark SQL.
+Avro Data Source for Spark supports reading and writing of Avro data from Spark SQL.
 
-- **Automatic schema conversion:** `spark-avro` supports most conversions between Spark SQL and Avro records, making Avro a first-class citizen in Spark.
+- **Automatic schema conversion:** It supports most conversions between Spark SQL and Avro records, making Avro a first-class citizen in Spark.
 - **Partitioning:** This library allows developers to easily read and write partitioned data
 witout any extra configuration. Just pass the columns you want to partition on, just like you would for Parquet.
 - **Compression:**  You can specify the type of compression to use when writing Avro out to
@@ -62,7 +62,7 @@ disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can a
 
 ## Supported types for Avro -> Spark SQL conversion
 
-`spark-avro` supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
+This library supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
 
 | Avro type | Spark SQL type |
 | --------- |----------------|
@@ -79,17 +79,17 @@ disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can a
 | map       | MapType        |
 | fixed     | BinaryType     |
 
-In addition to the types listed above, `spark-avro` supports reading of three types of `union` types:
+In addition to the types listed above, it supports reading of three types of `union` types:
 
 1. `union(int, long)`
 2. `union(float, double)`
 3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
 
-At the moment, `spark-avro` ignores docs, aliases and other properties present in the Avro file.
+At the moment, it ignores docs, aliases and other properties present in the Avro file.
 
 ## Supported types for Spark SQL -> Avro conversion
 
-`spark-avro` supports writing of all Spark SQL types into Avro. For most types, the mapping from Spark types to Avro types is straightforward (e.g. IntegerType gets converted to int); however, there are a few special cases which are listed below:
+This library supports writing of all Spark SQL types into Avro. For most types, the mapping from Spark types to Avro types is straightforward (e.g. IntegerType gets converted to int); however, there are a few special cases which are listed below:
 
 | Spark SQL type | Avro type |
 | ---------------|-----------|
