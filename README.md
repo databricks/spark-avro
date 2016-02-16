@@ -192,10 +192,12 @@ val sqlContext = new SQLContext(sc)
 val df = sqlContext
     .read
     .option("avro.input.schema.class", classOf[MyAvroRecord].getCanonicalName)
+// or .option("avro.input.schema.avsc", "{...}")    
     .avro("src/test/resources/episodes.avro")
 
 df.write
     .option("avro.output.schema.class", classOf[MyTransformedAvroRecord].getCanonicalName)
+// or .option("avro.input.schema.avsc", "{...}")
     .avro("/tmp/output")
 ```
 

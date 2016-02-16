@@ -20,7 +20,7 @@ import java.io.FileNotFoundException
 import java.util.zip.Deflater
 
 import com.google.common.base.Objects
-import org.apache.avro.SchemaBuilder
+import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
@@ -53,17 +53,28 @@ private[avro] class AvroRelation(
     case Some(clazz) =>
       logInfo(s"Using schema from Java class : '$clazz' instead of inferring one.")
       SpecificData.get().getSchema(Class.forName(clazz))
+      
     case None =>
-      paths match {
-        case Array(head, _*) => newReader(head)(_.getSchema)
-        case Array() =>
-          throw new java.io.FileNotFoundException(
-            "Cannot infer the schema when no files are present or no schema class defined."
-          )
+      parameters.get("avro.input.schema.avsc") match {
+        case Some(avsc) =>
+          logInfo(s"Using Avro input schema defined as parameter from avsc")
+          logDebug(s"Using Avsc schema : '$avsc'")
+          new Schema.Parser().parse(avsc)
+
+        case None =>
+          paths match {
+            case Array(head, _*) => newReader(head)(_.getSchema)
+            case Array() =>
+              throw new java.io.FileNotFoundException(
+                "Cannot infer the schema when no files are present or no schema class defined."
+              )
+          }
       }
+
   }
 
-  private lazy val avroOutputSchema = parameters.get("avro.output.schema.class")
+  private lazy val avroOutputSchemaClass = parameters.get("avro.output.schema.class")
+  private lazy val avroOutputSchemaAvsc = parameters.get("avro.output.schema.avsc")
 
   /**
    * Specifies schema of actual data files.  For partitioned relations, if one or more partitioned
@@ -89,14 +100,22 @@ private[avro] class AvroRelation(
    */
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val outputAvroSchema = avroOutputSchema match {
+    val outputAvroSchema = avroOutputSchemaClass match {
       case Some(outputSchemaClass) =>
         logInfo(s"Using Avro output schema defined as parameter from class $outputSchemaClass")
         SpecificData.get().getSchema(Class.forName(outputSchemaClass))
 
       case None =>
-        logInfo(s"Infering Avro output schema from DataFrame StructType")
-        SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+        avroOutputSchemaAvsc match {
+          case Some(avsc) =>
+            logInfo(s"Using Avro output schema defined as parameter from avsc")
+            logDebug(s"Using Avsc schema : '$avsc'")
+            new Schema.Parser().parse(avsc)
+
+          case None =>
+            logInfo(s"Infering Avro output schema from DataFrame StructType")
+            SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+        }
     }
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
     val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
