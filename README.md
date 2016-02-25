@@ -55,7 +55,7 @@ Avro Data Source for Spark supports reading and writing of Avro data from Spark 
 
 - **Automatic schema conversion:** It supports most conversions between Spark SQL and Avro records, making Avro a first-class citizen in Spark.
 - **Partitioning:** This library allows developers to easily read and write partitioned data
-witout any extra configuration. Just pass the columns you want to partition on, just like you would for Parquet.
+Without any extra configuration. Just pass the columns you want to partition on, just like you would for Parquet.
 - **Compression:**  You can specify the type of compression to use when writing Avro out to
 disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can also specify the deflate level.
 - **Specifying record names:** You can specify the record name and namespace to use by passing a map of parameters with `recordName` and `recordNamespace`.
@@ -121,7 +121,7 @@ val df = sqlContext.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
-Alternativly you can specify the format to use instead:
+Alternatively you can specify the format to use instead:
 
 ```scala
 val sqlContext = new SQLContext(sc)
