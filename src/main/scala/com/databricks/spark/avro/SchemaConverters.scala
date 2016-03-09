@@ -68,7 +68,7 @@ object SchemaConverters {
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
-	  if(f.schema().getType.equals(Type.STRING)){
+          if(f.schema().getType.equals(Type.STRING)){
             f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
           }
           val schemaType = toSqlType(f.schema())
