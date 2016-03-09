@@ -68,9 +68,7 @@ object SchemaConverters {
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
-          if(f.schema().getType.equals(Type.STRING)){
-            f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
-          }
+          f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
           val schemaType = toSqlType(f.schema())
           StructField(f.name, schemaType.dataType, schemaType.nullable)
         }
@@ -94,7 +92,9 @@ object SchemaConverters {
           // In case of a union with null, eliminate it and make a recursive call
           val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.get(0)).copy(nullable = true)
+            val remainingSchema = remainingUnionTypes.get(0)
+            avroSchema.getJsonProps.foreach(x => remainingSchema.addProp(x._1, x._2))
+            toSqlType(remainingSchema).copy(nullable = true)
           } else {
             toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
           }
@@ -202,7 +202,9 @@ object SchemaConverters {
         if (schema.getTypes.exists(_.getType == NULL)) {
           val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            createConverterToSQL(remainingUnionTypes.get(0))
+            val remainingSchema = remainingUnionTypes.get(0)
+            schema.getJsonProps.foreach(x => remainingSchema.addProp(x._1, x._2))
+            createConverterToSQL(remainingSchema)
           } else {
             createConverterToSQL(Schema.createUnion(remainingUnionTypes))
           }

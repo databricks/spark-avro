@@ -129,9 +129,7 @@ private[avro] class AvroRelation(
               val superSchema = firstRecord.getSchema // the schema of the actual record
               // the fields that are actually required along with their converters
               val avroFieldMap = superSchema.getFields.map{f =>
-                if(f.schema().getType.equals(Type.STRING)){
-                  f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
-                }
+                f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
                 (f.name, f)
               }.toMap
               
