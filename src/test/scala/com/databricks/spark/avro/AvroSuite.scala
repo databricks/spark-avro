@@ -20,6 +20,7 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val userFile = "src/test/resources/users.avro"
 
   private var sqlContext: SQLContext = _
 
@@ -441,5 +442,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val newDf = sqlContext.read.avro(tempSaveDir)
       assert(newDf.count == 8)
     }
+  }
+
+  test("Logical Types") {
+    val df = sqlContext.read.avro(userFile)
+    val decimals = df.select("a").collect().map(x => Decimal.apply(x.getDecimal(0)))
+    val a = Decimal.apply(BigDecimal.apply("100000000000000000000000000"), 38, 0)
+    val b = Decimal.apply(BigDecimal.apply("55555555555555555555555555555"), 38, 0)
+    
+    assert(decimals.apply(0).equals(a))
+    assert(decimals.apply(1).equals(b))
+    
+    assert(df.schema.apply(0).dataType == DecimalType(38,0))
   }
 }

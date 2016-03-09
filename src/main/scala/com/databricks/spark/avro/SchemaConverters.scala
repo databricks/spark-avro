@@ -27,12 +27,18 @@ import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.apache.avro.Schema.Type
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
  */
 object SchemaConverters {
+
+  val LOGICAL_TYPE = "logicalType"
+  val DECIMAL = "decimal"
+  val PRECISION = "precision"
+  val SCALE = "scale"
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
@@ -42,7 +48,16 @@ object SchemaConverters {
   def toSqlType(avroSchema: Schema): SchemaType = {
     avroSchema.getType match {
       case INT => SchemaType(IntegerType, nullable = false)
-      case STRING => SchemaType(StringType, nullable = false)
+      case STRING => {
+        val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
+        if(logicalType != null && logicalType.asText().equalsIgnoreCase(DECIMAL)){
+          val precision = avroSchema.getJsonProp(PRECISION).asInt
+          val scale = avroSchema.getJsonProp(SCALE).asInt
+          SchemaType(DecimalType(precision,scale), nullable = false)
+        }else {
+          SchemaType(StringType, nullable = false)
+        }
+      }
       case BOOLEAN => SchemaType(BooleanType, nullable = false)
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
@@ -53,6 +68,9 @@ object SchemaConverters {
 
       case RECORD =>
         val fields = avroSchema.getFields.map { f =>
+	  if(f.schema().getType.equals(Type.STRING)){
+            f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
+          }
           val schemaType = toSqlType(f.schema())
           StructField(f.name, schemaType.dataType, schemaType.nullable)
         }
@@ -125,7 +143,18 @@ object SchemaConverters {
   private[avro] def createConverterToSQL(schema: Schema): Any => Any = {
     schema.getType match {
       // Avro strings are in Utf8, so we have to call toString on them
-      case STRING | ENUM => (item: Any) => if (item == null) null else item.toString
+      case STRING | ENUM => (item: Any) => if (item == null) {
+        null
+      }else {
+        val logicalType = schema.getJsonProp(LOGICAL_TYPE)
+        if(logicalType != null && logicalType.asText().equalsIgnoreCase(DECIMAL)){
+            val precision = schema.getJsonProp(PRECISION).asInt
+            val scale = schema.getJsonProp(SCALE).asInt
+            Decimal.apply(BigDecimal.apply(item.toString()), precision, scale)
+        }else{
+          item.toString
+        }
+      }
       case INT | BOOLEAN | DOUBLE | FLOAT | LONG => identity
       // Byte arrays are reused by avro, so we have to make a copy of them.
       case FIXED => (item: Any) => if (item == null) {

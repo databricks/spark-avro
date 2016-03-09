@@ -18,11 +18,9 @@ package com.databricks.spark.avro
 
 import java.io.FileNotFoundException
 import java.util.zip.Deflater
-
 import scala.collection.Iterator
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-
 import com.google.common.base.Objects
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
@@ -31,12 +29,12 @@ import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.mapreduce.Job
-
 import org.apache.spark.Logging
 import org.apache.spark.rdd.{RDD, UnionRDD}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.avro.Schema.Type
 
 private[avro] class AvroRelation(
     override val paths: Array[String],
@@ -130,8 +128,13 @@ private[avro] class AvroRelation(
               val firstRecord = records.next()
               val superSchema = firstRecord.getSchema // the schema of the actual record
               // the fields that are actually required along with their converters
-              val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
-
+              val avroFieldMap = superSchema.getFields.map{f =>
+                if(f.schema().getType.equals(Type.STRING)){
+                  f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
+                }
+                (f.name, f)
+              }.toMap
+              
               new Iterator[Row] {
                 private[this] val baseIterator = records
                 private[this] var currentRecord = firstRecord
