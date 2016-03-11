@@ -171,7 +171,10 @@ object SchemaConverters {
         javaBytes
       }
       case RECORD =>
-        val fieldConverters = schema.getFields.map(f => createConverterToSQL(f.schema))
+        val fieldConverters = schema.getFields.map{f =>
+          f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
+          createConverterToSQL(f.schema)
+        }
         (item: Any) => if (item == null) {
           null
         } else {
