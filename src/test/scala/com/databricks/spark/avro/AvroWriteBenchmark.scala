@@ -1,14 +1,14 @@
 package com.databricks.spark.avro
 
+import java.sql.Date
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConversions._
 import scala.util.Random
-
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SQLContext, Row}
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 
 /**
@@ -24,6 +24,7 @@ object AvroWriteBenchmark {
   val testSchema = StructType(Seq(
     StructField("StringField", StringType, false),
     StructField("IntField", IntegerType, true),
+    StructField("dateField", DateType, true),
     StructField("DoubleField", DoubleType, false),
     StructField("DecimalField", DecimalType(10, 10), true),
     StructField("ArrayField", ArrayType(BooleanType), false),
@@ -32,7 +33,7 @@ object AvroWriteBenchmark {
 
   private def generateRandomRow(): Row = {
     val rand = new Random()
-    Row(rand.nextString(defaultSize), rand.nextInt(), rand.nextDouble(), rand.nextDouble(),
+    Row(rand.nextString(defaultSize), rand.nextInt(), new Date(rand.nextLong()) ,rand.nextDouble(), rand.nextDouble(),
       TestUtils.generateRandomArray(rand, defaultSize).toSeq,
       TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
   }
