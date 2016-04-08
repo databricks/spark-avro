@@ -19,6 +19,7 @@ package com.databricks.spark.avro
 import java.io.{IOException, OutputStream}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.sql.Date
 import java.util.HashMap
 
 import org.apache.hadoop.fs.Path
@@ -93,6 +94,8 @@ private[avro] class AvroOutputWriter(
       case _: DecimalType => (item: Any) => if (item == null) null else item.toString
       case TimestampType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[Timestamp].getTime
+      case DateType => (item: Any) =>
+        if (item == null) null else item.asInstanceOf[Date].getTime
       case ArrayType(elementType, _) =>
         val elementConverter = createConverterToAvro(elementType, structName, recordNamespace)
         (item: Any) => {

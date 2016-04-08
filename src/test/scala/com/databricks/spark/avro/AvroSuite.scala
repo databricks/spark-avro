@@ -24,17 +24,17 @@ import java.util.UUID
 
 import scala.collection.JavaConversions._
 
-import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
-import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.commons.io.FileUtils
-
-import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
+
+import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -294,6 +294,25 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
       assert(spark.read.avro(dir.toString).count == rdd.count)
+    }
+  }
+
+  test("Date field type") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("float", FloatType, true),
+        StructField("short", ShortType, true),
+        StructField("byte", ByteType, true),
+        StructField("date", DateType, true)
+      ))
+      val rdd = sqlContext.sparkContext.parallelize(Seq(
+        Row(1f, 1.toShort, 1.toByte, null),
+        Row(2f, 2.toShort, 2.toByte, new Date(1460120535000L)),
+        Row(3f, 3.toShort, 3.toByte, new Date(1460120535000L))
+      ))
+      val df = sqlContext.createDataFrame(rdd, schema)
+      df.write.avro(dir.toString)
+      assert(sqlContext.read.avro(dir.toString).count == rdd.count)
     }
   }
 
