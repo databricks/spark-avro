@@ -16,6 +16,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import java.sql.Date
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -446,13 +447,26 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("Logical Types") {
     val df = sqlContext.read.avro(userFile)
-    val decimals = df.select("a").collect().map(x => Decimal.apply(x.getDecimal(0)))
-    val a = Decimal.apply(BigDecimal.apply("100000000000000000000000000"), 38, 0)
-    val b = Decimal.apply(BigDecimal.apply("55555555555555555555555555555"), 38, 0)
+   
+    val decimals = df.select("decimal").collect().map(x => Decimal.apply(x.getDecimal(0)))
+    val dec1 = Decimal.apply(BigDecimal.apply("55555.555550000"), 25, 9)
+    val dec2 = Decimal.apply(BigDecimal.apply("8747336654.536756000"), 25, 9)
     
-    assert(decimals.apply(0).equals(a))
-    assert(decimals.apply(1).equals(b))
+    assert(decimals.apply(0).equals(dec1))
+    assert(decimals.apply(1).equals(dec2))
     
-    assert(df.schema.apply(0).dataType == DecimalType(38,0))
+    assert(df.schema.apply("decimal").dataType == DecimalType(25,9))
+    
+    
+    val timestamps = df.select("timestamp").collect().map(x => x.getAs[Timestamp](0))
+    val t1 = new Timestamp(1460354720000l)
+    val t2 = new Timestamp(1462842320000l)
+    
+    assert(timestamps.apply(0).equals(t1))
+    assert(timestamps.apply(1).equals(t2))
+    
+    assert(df.schema.apply("timestamp").dataType == TimestampType) 
+    
+    
   }
 }

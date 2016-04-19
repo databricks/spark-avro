@@ -28,6 +28,8 @@ import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.apache.avro.Schema.Type
+import java.sql.Timestamp
+import java.sql.Date
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -37,6 +39,8 @@ object SchemaConverters {
 
   val LOGICAL_TYPE = "logicalType"
   val DECIMAL = "decimal"
+  val TIMESTAMP = "timestamp";
+  val DATE = "date";
   val PRECISION = "precision"
   val SCALE = "scale"
 
@@ -62,7 +66,16 @@ object SchemaConverters {
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
       case FLOAT => SchemaType(FloatType, nullable = false)
-      case LONG => SchemaType(LongType, nullable = false)
+      case LONG => {
+         val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
+         if(logicalType != null && logicalType.asText().equalsIgnoreCase(TIMESTAMP)) {
+          SchemaType(TimestampType, nullable = false)
+        }else if(logicalType != null && logicalType.asText().equalsIgnoreCase(DATE)) {
+          SchemaType(TimestampType, nullable = false)
+        }else{
+          SchemaType(LongType, nullable = false)
+        }
+      }
       case FIXED => SchemaType(BinaryType, nullable = false)
       case ENUM => SchemaType(StringType, nullable = false)
 
@@ -155,7 +168,19 @@ object SchemaConverters {
           item.toString
         }
       }
-      case INT | BOOLEAN | DOUBLE | FLOAT | LONG => identity
+      case LONG => (item: Any) => if (item == null) {
+        null
+      }else {
+          val logicalType = schema.getJsonProp(LOGICAL_TYPE)
+          if(logicalType != null && logicalType.asText().equalsIgnoreCase(TIMESTAMP)){
+            new Timestamp(item.asInstanceOf[Long].longValue())
+          }else if(logicalType != null && logicalType.asText().equalsIgnoreCase(DATE)){
+            new Timestamp(item.asInstanceOf[Long].longValue())
+          }else{
+            item
+          }
+      }
+      case INT | BOOLEAN | DOUBLE | FLOAT => identity
       // Byte arrays are reused by avro, so we have to make a copy of them.
       case FIXED => (item: Any) => if (item == null) {
         null
