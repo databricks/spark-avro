@@ -32,14 +32,14 @@ import org.apache.spark.sql.types._
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
  */
-private object SchemaConverters {
+object SchemaConverters {
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
   /**
    * This function takes an avro schema and returns a sql schema.
    */
-  private[avro] def toSqlType(avroSchema: Schema): SchemaType = {
+  def toSqlType(avroSchema: Schema): SchemaType = {
     avroSchema.getType match {
       case INT => SchemaType(IntegerType, nullable = false)
       case STRING => SchemaType(StringType, nullable = false)
@@ -81,6 +81,8 @@ private object SchemaConverters {
             toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
           }
         } else avroSchema.getTypes.map(_.getType) match {
+          case Seq(t1) =>
+            toSqlType(avroSchema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
@@ -97,7 +99,7 @@ private object SchemaConverters {
    * This function converts sparkSQL StructType into avro schema. This method uses two other
    * converter methods in order to do the conversion.
    */
-  private[avro] def convertStructToAvro[T](
+  def convertStructToAvro[T](
       structType: StructType,
       schemaBuilder: RecordBuilder[T],
       recordNamespace: String): T = {
@@ -176,6 +178,8 @@ private object SchemaConverters {
             createConverterToSQL(Schema.createUnion(remainingUnionTypes))
           }
         } else schema.getTypes.map(_.getType) match {
+          case Seq(t1) =>
+            createConverterToSQL(schema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
             (item: Any) => {
               item match {
