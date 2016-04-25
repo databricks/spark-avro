@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014 Databricks
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.databricks.spark.avro
 
 import java.io.{File, FileNotFoundException}
@@ -118,7 +134,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("Incorrect Union Type") {
     TestUtils.withTempDir { dir =>
-      val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
+      val BadUnionType = Schema.createUnion(
+        List(Schema.create(Type.INT), Schema.create(Type.STRING)))
       val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
       val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
       val fields = Seq(new Field("field1", BadUnionType, "doc", null),
@@ -192,7 +209,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         StructField("bin_array", ArrayType(BinaryType), true),
         StructField("timestamp_array", ArrayType(TimestampType), true),
         StructField("array_array", ArrayType(ArrayType(StringType), true), true),
-        StructField("struct_array", ArrayType(StructType(Seq(StructField("name", StringType, true)))))))
+        StructField("struct_array", ArrayType(
+          StructType(Seq(StructField("name", StringType, true)))))))
 
       val arrayOfByte = new Array[Byte](4)
       for (i <- arrayOfByte.indices) {
@@ -264,7 +282,10 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(union1.map(_(0)).toSet == Set(66, 1, null))
 
     val union2 = sqlContext.read.avro(testFile).select("union_float_double").collect()
-    assert(union2.map(x => new java.lang.Double(x(0).toString)).exists(p => Math.abs(p - Math.PI) < 0.001))
+    assert(
+      union2
+        .map(x => new java.lang.Double(x(0).toString))
+        .exists(p => Math.abs(p - Math.PI) < 0.001))
 
     val fixed = sqlContext.read.avro(testFile).select("fixed3").collect()
     assert(fixed.map(_(0).asInstanceOf[Array[Byte]]).exists(p => p(1) == 3))
@@ -410,13 +431,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
            |CREATE TEMPORARY TABLE episodes
            |USING com.databricks.spark.avro
            |OPTIONS (path "$episodesFile")
-        """.stripMargin.replaceAll("\n", " "))
-      sqlContext.sql(s"""
-             |CREATE TEMPORARY TABLE episodesEmpty
-             |(name string, air_date string, doctor int)
-             |USING com.databricks.spark.avro
-             |OPTIONS (path "$tempEmptyDir")
-        """.stripMargin.replaceAll("\n", " "))
+         """.stripMargin.replaceAll("\n", " "))
+      sqlContext.sql(
+        s"""
+           |CREATE TEMPORARY TABLE episodesEmpty
+           |(name string, air_date string, doctor int)
+           |USING com.databricks.spark.avro
+           |OPTIONS (path "$tempEmptyDir")
+         """.stripMargin.replaceAll("\n", " "))
 
       assert(sqlContext.sql("SELECT * FROM episodes").collect().length === 8)
       assert(sqlContext.sql("SELECT * FROM episodesEmpty").collect().isEmpty)
@@ -425,7 +447,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         s"""
            |INSERT OVERWRITE TABLE episodesEmpty
            |SELECT * FROM episodes
-        """.stripMargin.replaceAll("\n", " "))
+         """.stripMargin.replaceAll("\n", " "))
       assert(sqlContext.sql("SELECT * FROM episodesEmpty").collect().length == 8)
     }
   }

@@ -22,7 +22,7 @@ import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
 
-import com.databricks.spark.avro.DefaultSource.IgnoreFilesWithoutExtensionProperty
+import com.databricks.spark.avro.DefaultSource.{IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
@@ -203,31 +203,31 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
 
 private[avro] object DefaultSource {
   val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
-}
 
-private[avro] class SerializableConfiguration(@transient var value: Configuration)
-  extends Serializable with Logging {
+  class SerializableConfiguration(@transient var value: Configuration)
+    extends Serializable with Logging {
 
-  private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
-    out.defaultWriteObject()
-    value.write(out)
-  }
+    private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
+      out.defaultWriteObject()
+      value.write(out)
+    }
 
-  private def readObject(in: ObjectInputStream): Unit = tryOrIOException {
-    value = new Configuration(false)
-    value.readFields(in)
-  }
+    private def readObject(in: ObjectInputStream): Unit = tryOrIOException {
+      value = new Configuration(false)
+      value.readFields(in)
+    }
 
-  private def tryOrIOException[T](block: => T): T = {
-    try {
-      block
-    } catch {
-      case e: IOException =>
-        logError("Exception encountered", e)
-        throw e
-      case NonFatal(e) =>
-        logError("Exception encountered", e)
-        throw new IOException(e)
+    private def tryOrIOException[T](block: => T): T = {
+      try {
+        block
+      } catch {
+        case e: IOException =>
+          logError("Exception encountered", e)
+          throw e
+        case NonFatal(e) =>
+          logError("Exception encountered", e)
+          throw new IOException(e)
+      }
     }
   }
 }
