@@ -16,7 +16,7 @@
 
 package com.databricks.spark.avro
 
-import java.io.{OutputStream, IOException}
+import java.io.{IOException, OutputStream}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
@@ -31,9 +31,10 @@ import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapreduce.{TaskAttemptID, RecordWriter, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
+
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.sources.OutputWriter
+import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types._
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.

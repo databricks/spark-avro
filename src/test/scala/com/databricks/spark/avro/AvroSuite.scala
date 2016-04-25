@@ -1,6 +1,6 @@
 package com.databricks.spark.avro
 
-import java.io.{FileNotFoundException, File}
+import java.io.{File, FileNotFoundException}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.UUID
@@ -8,12 +8,13 @@ import java.util.UUID
 import scala.collection.JavaConversions._
 
 import org.apache.avro.Schema
-import org.apache.avro.Schema.{Type, Field}
+import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
-import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
+import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.commons.io.FileUtils
+
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SQLContext, Row}
+import org.apache.spark.sql.{AnalysisException, Row, SQLContext}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -376,17 +377,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files
-    intercept[FileNotFoundException] {
+    intercept[AnalysisException] {
       TestUtils.withTempDir(dir => sqlContext.read.avro(dir.getCanonicalPath))
     }
 
-    intercept[FileNotFoundException] {
+    intercept[AnalysisException] {
       sqlContext.read.avro("very/invalid/path/123.avro")
     }
 
     // In case of globbed path that can't be matched to anything, another exception is thrown (and
     // exception message is helpful)
-    intercept[FileNotFoundException] {
+    intercept[AnalysisException] {
       sqlContext.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 
