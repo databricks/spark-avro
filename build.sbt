@@ -26,6 +26,9 @@ spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
 
+// TODO: remove after Spark 2.0.0 is released:
+resolvers += "apache-snapshots" at "https://repository.apache.org/snapshots/"
+
 libraryDependencies ++= Seq(
   "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % "1.7.7"  % "provided" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api"),
