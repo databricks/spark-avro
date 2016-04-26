@@ -35,8 +35,8 @@ import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
-import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeProjection
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, GenericRow, JoinedRow}
+import org.apache.spark.sql.catalyst.expressions.codegen.{GenerateUnsafeProjection, GenerateUnsafeRowJoiner}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, GenericRow, JoinedRow, UnsafeRow}
 import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFactory, PartitionedFile}
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{StructField, StructType}
@@ -165,17 +165,21 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
       }
 
       new Iterator[InternalRow] {
-        val rowBuffer = Array.fill[Any](requiredSchema.length)(null)
+        private val rowBuffer = Array.fill[Any](requiredSchema.length)(null)
+
+        private val safeRow = new GenericRow(rowBuffer)
 
         // Used to convert `Row`s containing data columns into `InternalRow`s.
-        val encoder = RowEncoder(requiredSchema)
+        private val encoderForDataColumns = RowEncoder(requiredSchema)
 
-        val joinedRow = new JoinedRow()
-
-        val toUnsafeRow = {
-          val fullOutput = toAttributes(requiredSchema ++ partitionSchema)
-          GenerateUnsafeProjection.generate(fullOutput, fullOutput)
+        private val unsafePartitionValues = {
+          val partitionColumns = toAttributes(partitionSchema)
+          val toUnsafe = GenerateUnsafeProjection.generate(partitionColumns, partitionColumns)
+          toUnsafe(file.partitionValues)
         }
+
+        private val unsafeRowJoiner =
+          GenerateUnsafeRowJoiner.generate((requiredSchema, partitionSchema))
 
         private def toAttributes(schema: Seq[StructField]): Seq[Attribute] = schema.map { f =>
           AttributeReference(f.name, f.dataType, f.nullable)()
@@ -192,9 +196,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
             i += 1
           }
 
-          val internalDataRow = encoder.toRow(new GenericRow(rowBuffer))
-          val withPartitionValues = joinedRow(internalDataRow, file.partitionValues)
-          toUnsafeRow(withPartitionValues)
+          val unsafeDataRow = encoderForDataColumns.toRow(safeRow).asInstanceOf[UnsafeRow]
+          unsafeRowJoiner.join(unsafeDataRow, unsafePartitionValues)
         }
       }
     }
