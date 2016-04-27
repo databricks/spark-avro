@@ -32,11 +32,11 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.codegen.{GenerateUnsafeProjection, GenerateUnsafeRowJoiner}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, GenericRow, JoinedRow, UnsafeRow}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, GenericRow, UnsafeRow}
 import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFactory, PartitionedFile}
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{StructField, StructType}
@@ -48,7 +48,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
   }
 
   override def inferSchema(
-      sqlContext: SQLContext,
+      sqlContext: SparkSession,
       options: Map[String, String],
       files: Seq[FileStatus]): Option[StructType] = {
     val conf = sqlContext.sparkContext.hadoopConfiguration
@@ -87,7 +87,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
   override def shortName(): String = "avro"
 
   override def prepareWrite(
-      sqlContext: SQLContext,
+      sqlContext: SparkSession,
       job: Job,
       options: Map[String, String],
       dataSchema: StructType): OutputWriterFactory = {
@@ -127,15 +127,16 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
   }
 
   override def buildReader(
-      sqlContext: SQLContext,
+      sqlContext: SparkSession,
       dataSchema: StructType,
       partitionSchema: StructType,
       requiredSchema: StructType,
       filters: Seq[Filter],
-      options: Map[String, String]): (PartitionedFile) => Iterator[InternalRow] = {
+      options: Map[String, String],
+      hadoopConf: Configuration): (PartitionedFile) => Iterator[InternalRow] = {
 
-    val conf = new Configuration(sqlContext.sparkContext.hadoopConfiguration)
-    val broadcastedConf = sqlContext.sparkContext.broadcast(new SerializableConfiguration(conf))
+    val broadcastedConf =
+      sqlContext.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
     (file: PartitionedFile) => {
       val reader = {
