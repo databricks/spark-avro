@@ -121,7 +121,7 @@ val df = sqlContext.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
-Alternativly you can specify the format to use instead:
+Alternatively you can specify the format to use instead:
 
 ```scala
 val sqlContext = new SQLContext(sc)
@@ -181,6 +181,35 @@ val namespace = "com.databricks.spark.avro"
 val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
 df.write.options(parameters).avro("/tmp/output")
+```
+
+You can specify the Schema you want to use from/to Avro generated classes like this:
+
+```scala
+import com.databricks.spark.avro._
+
+val sqlContext = new SQLContext(sc)
+val df = sqlContext
+    .read
+    .option("avro.input.schema.class", classOf[MyAvroRecord].getCanonicalName)
+// or .option("avro.input.schema.avsc", "{...}")    
+    .avro("src/test/resources/episodes.avro")
+
+df.write
+    .option("avro.output.schema.class", classOf[MyTransformedAvroRecord].getCanonicalName)
+// or .option("avro.input.schema.avsc", "{...}")
+    .avro("/tmp/output")
+```
+
+And if you already have an RDD of Avro records then you can use the `toAvroDF` method :
+
+```scala
+import com.databricks.spark.avro._
+
+val sqlContext = new SQLContext(sc)
+val rdd : RDD[MyAvroRecord] = ...
+
+val df = rdd.toAvroDF(sqlContext) // will use automatically the schema of the class
 ```
 
 ### Java API
