@@ -1,4 +1,4 @@
-# Avro Data Source for Spark
+# Avro Data Source for Apache Spark
 
 A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
