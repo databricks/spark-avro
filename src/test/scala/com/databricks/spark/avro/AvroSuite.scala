@@ -58,6 +58,12 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(sqlContext.sql("select count(*) from avro_table").collect().head === Row(8))
   }
 
+  test("read multiple files") {
+    val df = TestSQLContext.avroFile(Seq(episodesFile, episodesFile).mkString(","))
+    df.registerTempTable("multiple_avro_table")
+    assert(TestSQLContext.sql("select count(*) from multiple_avro_table").collect().head === Row(16))
+  }
+
   test("convert formats") {
     TestUtils.withTempDir { dir =>
       val df = sqlContext.read.avro(episodesFile)

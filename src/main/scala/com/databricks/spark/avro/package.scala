@@ -16,6 +16,9 @@
 package com.databricks.spark
 
 import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.spark.deploy.SparkHadoopUtil
+
+import org.apache.hadoop.fs.Path
 
 package object avro {
 
@@ -24,9 +27,23 @@ package object avro {
    */
   @deprecated("use read.avro()", "1.1.0")
   implicit class AvroContext(sqlContext: SQLContext) {
-    def avroFile(filePath: String, minPartitions: Int = 0) =
+    def avroFile(filePath: String, minPartitions: Int = 0): DataFrame =
+      avroFile(filePath.split(","))
+
+    def avroFile(filePaths: Seq[String]): DataFrame = {
+      val globbedPaths = filePaths.flatMap { path =>
+        val hdfsPath = new Path(path)
+        val fs = hdfsPath.getFileSystem(sqlContext.sparkContext.hadoopConfiguration)
+        val qualified = hdfsPath.makeQualified(fs.getUri, fs.getWorkingDirectory)
+        if (qualified.toString.exists("{}[]*?\\".toSet.contains)) {
+          SparkHadoopUtil.get.globPath(qualified)
+        } else {
+          Seq(qualified)
+        }
+      }.toArray
       sqlContext.baseRelationToDataFrame(
-        new AvroRelation(Array(filePath), None, None, Map.empty)(sqlContext))
+        new AvroRelation(globbedPaths.map(_.toString), None, None, Map.empty)(sqlContext))
+    }
   }
 
   /**
