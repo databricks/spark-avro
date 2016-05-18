@@ -442,4 +442,49 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(newDf.count == 8)
     }
   }
+
+  test("test save and load with path specified for schema") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(episodesFile)
+      assert(df.count == 8)
+
+      val tempSaveDir = s"$tempDir/save/"
+
+      df.select(df("title"), df("doctor")).write.avro(tempSaveDir)
+      val newDf1 = sqlContext.read.option("schemaFromPath", episodesFile).avro(tempSaveDir)
+      assert(newDf1.count == 8)
+      assert(newDf1.schema == df.schema)
+      val newDf2 = sqlContext.read.avro(tempSaveDir)
+      assert(newDf2.count == 8)
+      assert(newDf2.schema == StructType(Array(StructField("title", StringType, true), StructField("doctor", IntegerType, true))))
+    }
+  }
+
+
+  test("test save and load with comma in path") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(episodesFile)
+      assert(df.count == 8)
+
+      val tempSaveDir = s"$tempDir/sa,ve/"
+
+      df.write.avro(tempSaveDir)
+      val newDf = sqlContext.read.avro(tempSaveDir)
+      assert(newDf.count == 8)
+
+      val tempSaveDir1 = s"$tempDir/sa,ve1/"
+      df.write.avro(tempSaveDir1)
+
+      // this ugly hack is sqlContext.avroFile except i would like to pass in multiple paths
+      // with SPARK-10185 multiple paths will work again with sqlContext.read.avro
+      val newDf1 = sqlContext.baseRelationToDataFrame(
+        new AvroRelation(Array("file://" + tempSaveDir, "file://" + tempSaveDir1), None, None, Map.empty)(sqlContext))
+      assert(newDf1.count == 16)
+
+      val newDf2 = sqlContext.read.avro(s"$tempDir/sa,ve*/")
+      assert(newDf2.count == 16)
+    }
+  }
 }

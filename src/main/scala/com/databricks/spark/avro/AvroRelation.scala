@@ -19,22 +19,21 @@ package com.databricks.spark.avro
 import java.io.FileNotFoundException
 import java.util.zip.Deflater
 
-import scala.collection.Iterator
-import scala.collection.JavaConversions._
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConverters._
 
 import com.google.common.base.Objects
-import org.apache.avro.SchemaBuilder
+import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader, FileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
+import org.apache.hadoop.mapred.{JobConf, FileInputFormat}
 import org.apache.hadoop.mapreduce.Job
 
 import org.apache.spark.Logging
-import org.apache.spark.rdd.{RDD, UnionRDD}
-import org.apache.spark.sql.sources._
+import org.apache.spark.rdd.{RDD, HadoopRDD}
+import org.apache.spark.sql.sources.{HadoopFsRelation, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -48,12 +47,22 @@ private[avro] class AvroRelation(
   private val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
   private val recordName = parameters.getOrElse("recordName", "topLevelRecord")
   private val recordNamespace = parameters.getOrElse("recordNamespace", "")
+  private val schemaFromLastPath = parameters.get("schemaFromLastPath")
+    .map(_.toBoolean).getOrElse(false)
+  private val schemaFromPath = parameters.get("schemaFromPath")
 
   /** needs to be lazy so it is not evaluated when saving since no schema exists at that location */
-  private lazy val avroSchema = paths match {
-    case Array(head, _*) => newReader(head)(_.getSchema)
-    case Array() =>
-      throw new java.io.FileNotFoundException("Cannot infer the schema when no files are present.")
+  private lazy val avroSchema = {
+    val schemaPath = schemaFromPath.getOrElse{
+      paths match {
+        case Array() =>
+          throw new java.io.FileNotFoundException(
+            "Cannot infer the schema when no files are present.")
+        case array if schemaFromLastPath => array.last
+        case array => array.head
+      }
+    }
+    newReader(schemaPath)(_.getSchema)
   }
 
   /**
@@ -62,10 +71,8 @@ private[avro] class AvroRelation(
    *
    * @since 1.4.0
    */
-  override def dataSchema: StructType = maybeDataSchema match {
-    case Some(structType) => structType
-    case None => SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType]
-  }
+  override def dataSchema: StructType = maybeDataSchema.getOrElse(
+    SchemaConverters.toSqlType(avroSchema).dataType.asInstanceOf[StructType])
 
   /**
    * Prepares a write job and returns an [[OutputWriterFactory]].  Client side job preparation can
@@ -116,69 +123,34 @@ private[avro] class AvroRelation(
     if (inputs.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
-      new UnionRDD[Row](sqlContext.sparkContext,
-      inputs.map(path =>
-        sqlContext.sparkContext.hadoopFile(
-          path.getPath.toString,
-          classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
-          classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
-          classOf[org.apache.hadoop.io.NullWritable]).keys.map(_.datum())
-          .mapPartitions { records =>
-            if (records.isEmpty) {
-              Iterator.empty
-            } else {
-              val firstRecord = records.next()
-              val superSchema = firstRecord.getSchema // the schema of the actual record
-              // the fields that are actually required along with their converters
-              val avroFieldMap = superSchema.getFields.map(f => (f.name, f)).toMap
+      val job = new JobConf(sqlContext.sparkContext.hadoopConfiguration)
+      val inputAvroSchema = Schema.createRecord(recordName, null, recordNamespace, false)
+      inputAvroSchema.setFields(requiredColumns.map{ col =>
+        val existing = avroSchema.getField(col)
+        val field = new Schema.Field(existing.name, existing.schema, null, existing.defaultValue, 
+          existing.order)
+        existing.aliases.asScala.foreach(field.addAlias(_))
+        field
+      }.toList.asJava)
+      // i have to do this the ugly way because hadoopFile only exposes one path (why?)
+      job.set(org.apache.avro.mapred.AvroJob.INPUT_SCHEMA, inputAvroSchema.toString)
+      val fieldConverters = inputAvroSchema.getFields.asScala.map{ f =>
+        SchemaConverters.createConverterToSQL(f.schema) }
+      FileInputFormat.setInputPaths(job, inputs.map(_.getPath).toArray: _*)
 
-              new Iterator[Row] {
-                private[this] val baseIterator = records
-                private[this] var currentRecord = firstRecord
-                private[this] val rowBuffer = new Array[Any](requiredColumns.length)
-                // A micro optimization to avoid allocating a WrappedArray per row.
-                private[this] val bufferSeq = rowBuffer.toSeq
-
-                // An array of functions that pull a column out of an avro record and puts the
-                // converted value into the correct slot of the rowBuffer.
-                private[this] val fieldExtractors = requiredColumns.zipWithIndex.map {
-                  case (columnName, idx) =>
-                    // Spark SQL should not pass us invalid columns
-                    val field =
-                      avroFieldMap.getOrElse(
-                        columnName,
-                        throw new AssertionError(s"Invalid column $columnName"))
-                    val converter = SchemaConverters.createConverterToSQL(field.schema)
-
-                    (record: GenericRecord) => rowBuffer(idx) = converter(record.get(field.pos()))
-                }
-
-                private def advanceNextRecord() = {
-                  if (baseIterator.hasNext) {
-                    currentRecord = baseIterator.next()
-                    true
-                  } else {
-                    false
-                  }
-                }
-
-                def hasNext = {
-                  currentRecord != null || advanceNextRecord()
-                }
-
-                def next() = {
-                  assert(hasNext)
-                  var i = 0
-                  while (i < fieldExtractors.length) {
-                    fieldExtractors(i)(currentRecord)
-                    i += 1
-                  }
-                  currentRecord = null
-                  Row.fromSeq(bufferSeq)
-                }
-              }
-            }
-        }))
+      new HadoopRDD(
+        sqlContext.sparkContext,
+        job,
+        classOf[org.apache.avro.mapred.AvroInputFormat[GenericRecord]],
+        classOf[org.apache.avro.mapred.AvroWrapper[GenericRecord]],
+        classOf[org.apache.hadoop.io.NullWritable],
+        sqlContext.sparkContext.defaultMinPartitions
+      ).keys.map{ wrapper => 
+        val record = wrapper.datum()
+        val row = Row.fromSeq(fieldConverters.zipWithIndex.map{ case (converter, i) => 
+          converter(record.get(i)) })
+        row
+      }
     }
   }
 
