@@ -11,6 +11,7 @@ import org.apache.avro.Schema
 import org.apache.avro.Schema.{Type, Field}
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericData, GenericRecord, GenericDatumWriter}
+import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{SQLContext, Row}
@@ -115,28 +116,60 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("Incorrect Union Type") {
+  test("Complex Union Type") {
     TestUtils.withTempDir { dir =>
-      val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
-      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
-      val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
-      val fields = Seq(new Field("field1", BadUnionType, "doc", null),
-        new Field("fixed", fixedUnionType, "doc", null),
-        new Field("bytes", Schema.create(Type.BYTES), "doc", null))
+      
+      //val BadUnionType = Schema.createUnion(List(Schema.create(Type.INT),Schema.create(Type.STRING)))
+      //val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
+      //val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
+      //val fields = Seq(new Field("field1", BadUnionType, "doc", null),
+      //  new Field("fixed", fixedUnionType, "doc", null),
+      //  new Field("bytes", Schema.create(Type.BYTES), "doc", null))
+      
+      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 4)
+       val enumSchema = Schema.createEnum("enum_name", "doc", "namespace", List("e1", "e2"))
+       val complexUnionType = Schema.createUnion(
+         List(Schema.create(Type.INT), Schema.create(Type.STRING), fixedSchema, enumSchema))
+       val fields = Seq(
+         new Field("field1", complexUnionType, "doc", null),
+         new Field("field2", complexUnionType, "doc", null),
+         new Field("field3", complexUnionType, "doc", null),
+         new Field("field4", complexUnionType, "doc", null)
+       )
+        
+        
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
       val datumWriter = new GenericDatumWriter[GenericRecord](schema)
       val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
       dataFileWriter.create(schema, new File(s"$dir.avro"))
       val avroRec = new GenericData.Record(schema)
-      avroRec.put("field1", "Hope that was not load bearing")
-      avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
+      
+      //avroRec.put("field1", "Hope that was not load bearing")
+      //avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
+      
+       val field1 = 1234
+       val field2 = "Hope that was not load bearing"
+       val field3 = Array[Byte](1, 2, 3, 4)
+       val field4 = "e2"
+       avroRec.put("field1", field1)
+       avroRec.put("field2", field2)
+       avroRec.put("field3", new Fixed(fixedSchema, field3))
+       avroRec.put("field4", new EnumSymbol(enumSchema, field4))
+      
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[UnsupportedOperationException] {
-        sqlContext.read.avro(s"$dir.avro")
-      }
+      
+      //intercept[UnsupportedOperationException] {
+      //  sqlContext.read.avro(s"$dir.avro")
+      //}
+      
+      val df = sqlContext.read.avro(s"$dir.avro")
+       assertResult(field1)(df.selectExpr("field1.member0").first().get(0))
+       assertResult(field2)(df.selectExpr("field2.member1").first().get(0))
+       assertResult(field3)(df.selectExpr("field3.member2").first().get(0))
+       assertResult(field4)(df.selectExpr("field4.member3").first().get(0))
     }
   }
 
@@ -303,6 +336,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("convert generic records to dataframe") {
+     val record = new SerializableRecord()
+     record.put("content", "abc")
+     val recordRdd = sqlContext.sparkContext.parallelize(Seq[GenericRecord](record))
+     val df = sqlContext.createDataFrame(recordRdd, record.getSchema)
+     assert(df.count() == 1)
+   }
+ 
   test("conversion to avro and back with namespace") {
     // Note that test.avro includes a variety of types, some of which are nullable. We expect to
     // get the same values back.

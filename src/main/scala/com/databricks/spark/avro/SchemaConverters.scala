@@ -28,12 +28,15 @@ import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
+
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
  */
 object SchemaConverters {
 
+  private val dtCache = collection.mutable.Map[String, (Any => Any)]()
+  
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
   /**
@@ -87,8 +90,19 @@ object SchemaConverters {
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
-          case other => throw new UnsupportedOperationException(
-            s"This mix of union types is not supported (see README): $other")
+          case _ =>
+            // Convert complex unions to struct types where field names are member0, member1, etc.
+            // This is consistent with the behavior when reading Parquet files.
+            val fields = avroSchema.getTypes.zipWithIndex map {
+              case (s, i) =>
+                val schemaType = toSqlType(s)
+                // All fields are nullable because only one of them is set at a time
+                StructField(s"member$i", schemaType.dataType, nullable = true)
+            }
+
+            SchemaType(StructType(fields), nullable = false)
+          //case other => throw new UnsupportedOperationException(
+          //  s"This mix of union types is not supported (see README): $other")
         }
 
       case other => throw new UnsupportedOperationException(s"Unsupported type $other")
@@ -106,18 +120,122 @@ object SchemaConverters {
     val fieldsAssembler: FieldAssembler[T] = schemaBuilder.fields()
     structType.fields.foreach { field =>
       val newField = fieldsAssembler.name(field.name).`type`()
-
       if (field.nullable) {
-        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace)
-          .noDefault
+        convertFieldTypeToAvro(field.dataType, newField.nullable(), field.name, recordNamespace).noDefault
       } else {
-        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace)
-          .noDefault
+        convertFieldTypeToAvro(field.dataType, newField, field.name, recordNamespace).noDefault
       }
     }
     fieldsAssembler.endRecord()
   }
 
+  def createConverterToAvro(dataType: DataType, avroSchema: AvroSchema) : (Any) => Any = 
+    dtCache.getOrElseUpdate(dataType.typeName, createConverterToAvro(dataType, avroSchema.schema))
+  
+  def convert(dataType: DataType, schema: AvroSchema, row: Row): GenericRecord = {
+    createConverterToAvro(dataType, schema)(row).asInstanceOf[GenericRecord]
+  }
+  
+  private[avro] def createConverterToAvro(dataType: DataType, schema: Schema): (Any) => Any = {
+    dataType match {
+      case BinaryType => (item: Any) => item match {
+        case null => null
+        case bytes: Array[Byte] => ByteBuffer.wrap(bytes)
+      }
+      case ByteType | ShortType | IntegerType | LongType |
+           FloatType | DoubleType | StringType | BooleanType => identity
+      case _: DecimalType => (item: Any) => if (item == null) null else item.toString
+      case TimestampType => (item: Any) =>
+        if (item == null) null else item.asInstanceOf[java.sql.Timestamp].getTime
+      case ArrayType(elementType, containsNull) =>
+        val elementSchema = schema.getType match {
+          case UNION => {
+            val remainingTypes = schema.getTypes.filterNot(_.getType == NULL)
+            if (remainingTypes.length != 1) throw new UnsupportedOperationException("Unsupported: Avro Union can only represent a SQL ArrayType if it's used for optional elements (null)")
+            else remainingTypes.get(0).getElementType
+          }
+          case ARRAY => {
+            schema.getElementType
+          }
+          case _ => {
+            throw new UnsupportedOperationException("Unsupported: can't match an Avro " + schema.getType + " to a SQL ArrayType")
+          }
+        }
+        val elementConverter = createConverterToAvro(elementType, elementSchema)
+        (item: Any) => {
+          if (item == null )  null
+          else {
+            val sourceArray = item.asInstanceOf[Seq[Any]]
+            val sourceArraySize = sourceArray.size
+            val targetList = new java.util.ArrayList[Any]
+            var idx = 0
+            while (idx < sourceArraySize) {
+              targetList.add(idx, elementConverter(sourceArray(idx)))
+              idx += 1
+            }
+            targetList
+          }
+        }
+      // Avro maps only support string keys
+      case MapType(StringType, valueType, _) =>        
+        val valueConverter = createConverterToAvro(valueType, schema.getValueType)
+        (item: Any) => {
+          if (item == null) null
+          else {
+            val javaMap = new HashMap[String, Any]()
+            item.asInstanceOf[Map[String, Any]].foreach { case (key, value) =>
+              javaMap.put(key, valueConverter(value))
+            }
+            javaMap
+          }
+        }
+      case structType: StructType => {
+        schema.getType match {
+          case UNION => {
+            if (schema.getTypes.exists(_.getType == NULL)) {
+              val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
+              if (remainingUnionTypes.size == 1) {
+                createConverterToAvro(structType, remainingUnionTypes.get(0))
+              }
+              else {
+                // TODO
+                throw new UnsupportedOperationException(s"1111 This mix of union types is not supported (see README)")
+              }
+            }
+            else {
+              // TODO
+              throw new UnsupportedOperationException(s"2222 This mix of union types is not supported (see README)")
+            }
+          }
+          case _ => {
+            val fieldConverters = structType.fields.map(f => {
+              createConverterToAvro(f.dataType, schema.getField(f.name).schema())
+            })
+            (item: Any) => {
+              if (item == null) null
+              else {
+                val record = new GenericData.Record(schema)
+                val convertersIterator = fieldConverters.iterator
+                val fieldNamesIterator = dataType.asInstanceOf[StructType].fieldNames.iterator
+                val rowIterator = item.asInstanceOf[Row].toSeq.iterator
+    
+                while (convertersIterator.hasNext) {
+                  val converter = convertersIterator.next()
+                  record.put(fieldNamesIterator.next(), converter(rowIterator.next()))
+                }
+                record
+              }
+            }
+          }
+        }
+        
+      }
+
+    }
+  }
+  
+  
+  
   /**
    * Returns a function that is used to convert avro types to their
    * corresponding sparkSQL representations.
@@ -160,7 +278,16 @@ object SchemaConverters {
         (item: Any) => if (item == null) {
           null
         } else {
-          item.asInstanceOf[GenericData.Array[Any]].map(elementConverter)
+          val converted = item.asInstanceOf[java.util.Collection[Any]]
+          val genericWrapper = new GenericData.Array(schema, converted)
+          genericWrapper.map(elementConverter)
+          /*
+          item match { 
+            case c : java.util.Collection[Any] @unchecked => c.map(elementConverter)
+            case _ => item.asInstanceOf[GenericData.Array[Any]].map(elementConverter)
+          }
+          * 
+          */
         }
       case MAP =>
         val valueConverter = createConverterToSQL(schema.getValueType)
@@ -196,8 +323,16 @@ object SchemaConverters {
                 case null => null
               }
             }
-          case other => throw new UnsupportedOperationException(
-            s"This mix of union types is not supported (see README): $other")
+          case _ =>
+            val fieldConverters = schema.getTypes map createConverterToSQL
+            (item: Any) => if (item == null) {
+              null
+            } else {
+              val i = GenericData.get().resolveUnion(schema, item)
+              val converted = new Array[Any](fieldConverters.size)
+              converted(i) = fieldConverters(i)(item)
+              Row.fromSeq(converted.toSeq)
+            }
         }
       case other => throw new UnsupportedOperationException(s"invalid avro type: $other")
     }
@@ -238,8 +373,8 @@ object SchemaConverters {
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          schemaBuilder.record(structName).namespace(recordNamespace),
-          recordNamespace)
+          schemaBuilder.record(recordNamespace + "." + structName),
+          recordNamespace + "." + structName)
 
       case other => throw new IllegalArgumentException(s"Unexpected type $dataType.")
     }
@@ -281,8 +416,8 @@ object SchemaConverters {
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          newFieldBuilder.record(structName).namespace(recordNamespace),
-          recordNamespace)
+          newFieldBuilder.record(recordNamespace + "." + structName),
+          recordNamespace + "." + structName)
 
       case other => throw new UnsupportedOperationException(s"Unexpected type $dataType.")
     }
@@ -295,4 +430,8 @@ object SchemaConverters {
       SchemaBuilder.builder()
     }
   }
+  
+
+  
+  
 }

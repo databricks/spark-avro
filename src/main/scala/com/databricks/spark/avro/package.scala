@@ -15,7 +15,12 @@
  */
 package com.databricks.spark
 
-import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.avro.Schema
+import org.apache.avro.generic.GenericRecord
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql._
+
 
 package object avro {
 
@@ -43,5 +48,19 @@ package object avro {
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
+  }
+  
+  implicit class AvroSQLContext(sqlContext: SQLContext) {
+    
+    def createDataFrame(rdd: RDD[GenericRecord], schema: Schema): DataFrame = 
+      AvroUtil.createDataFrame(sqlContext, rdd, schema)
+
+    //def createDataFrame(rdd: RDD[GenericRecord]): DataFrame = 
+    //  AvroUtil.createDataFrame(sqlContext, rdd, schema)
+      
+      
+    def createRdd(df: DataFrame, schema: Schema) : RDD[GenericRecord] = 
+      AvroUtil.createRdd(df, schema) 
+    
   }
 }
