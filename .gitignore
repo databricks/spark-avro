@@ -3,3 +3,8 @@ target/
 .idea/
 .idea_modules/
 *.iml
+.cache-main
+.cache-tests
+.classpath
+.project
+.settings/
