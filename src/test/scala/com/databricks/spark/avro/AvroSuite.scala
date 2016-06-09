@@ -340,7 +340,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
      val record = new SerializableRecord()
      record.put("content", "abc")
      val recordRdd = sqlContext.sparkContext.parallelize(Seq[GenericRecord](record))
-     val df = sqlContext.createDataFrame(recordRdd, record.getSchema)
+     val df = sqlContext.createAvroDataFrame(recordRdd, record.getSchema)
      assert(df.count() == 1)
    }
  
