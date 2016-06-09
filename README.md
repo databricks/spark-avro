@@ -1,3 +1,16 @@
+
+Applied patches (more or less exact): 
+
+https://github.com/databricks/spark-avro/pull/117  : support for (more) complex unions (still limited though)
+https://github.com/databricks/spark-avro/pull/89 : GenericRecord to Row conversion
+https://github.com/databricks/spark-avro/pull/132/files : expose the convertor
+https://github.com/databricks/spark-avro/pull/130 : fixes for ARRAY conversion
+https://github.com/databricks/spark-avro/pull/73 : uses namespaces before structs
+
+Disclaimer: this is work in progress, it's a temporary series of fixes and extensions while waiting for spark-2.0 and the dataset API. 
+
+
+
 # Avro Data Source for Apache Spark
 
 A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
