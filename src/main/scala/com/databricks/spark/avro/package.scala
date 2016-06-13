@@ -22,7 +22,7 @@ package object avro {
    * Adds a method, `avro`, to DataFrameWriter that allows you to write avro files using
    * the DataFileWriter
    */
-  implicit class AvroDataFrameWriter(writer: DataFrameWriter) {
+  implicit class AvroDataFrameWriter[T](writer: DataFrameWriter[T]) {
     def avro: String => Unit = writer.format("com.databricks.spark.avro").save
   }
 

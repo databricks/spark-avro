@@ -31,6 +31,7 @@ import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
+import org.slf4j.LoggerFactory
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
@@ -40,7 +41,9 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFacto
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.StructType
 
-private[avro] class DefaultSource extends FileFormat with DataSourceRegister with Logging {
+private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
+  private val log = LoggerFactory.getLogger(getClass)
+
   override def equals(other: Any): Boolean = other match {
     case _: DefaultSource => true
     case _ => false
@@ -102,24 +105,24 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
 
     spark.conf.get(AVRO_COMPRESSION_CODEC, "snappy") match {
       case "uncompressed" =>
-        logInfo("writing uncompressed Avro records")
+        log.info("writing uncompressed Avro records")
         job.getConfiguration.setBoolean(COMPRESS_KEY, false)
 
       case "snappy" =>
-        logInfo("compressing Avro output using Snappy")
+        log.info("compressing Avro output using Snappy")
         job.getConfiguration.setBoolean(COMPRESS_KEY, true)
         job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.SNAPPY_CODEC)
 
       case "deflate" =>
         val deflateLevel = spark.conf.get(
           AVRO_DEFLATE_LEVEL, Deflater.DEFAULT_COMPRESSION.toString).toInt
-        logInfo(s"compressing Avro output using deflate (level=$deflateLevel)")
+        log.info(s"compressing Avro output using deflate (level=$deflateLevel)")
         job.getConfiguration.setBoolean(COMPRESS_KEY, true)
         job.getConfiguration.set(AvroJob.CONF_OUTPUT_CODEC, DataFileConstants.DEFLATE_CODEC)
         job.getConfiguration.setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, deflateLevel)
 
       case unknown: String =>
-        logError(s"unsupported compression codec $unknown")
+        log.error(s"unsupported compression codec $unknown")
     }
 
     new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
@@ -193,8 +196,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
 private[avro] object DefaultSource {
   val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
 
-  class SerializableConfiguration(@transient var value: Configuration)
-    extends Serializable with Logging {
+  class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
+    private val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
       out.defaultWriteObject()
@@ -211,10 +214,10 @@ private[avro] object DefaultSource {
         block
       } catch {
         case e: IOException =>
-          logError("Exception encountered", e)
+          log.error("Exception encountered", e)
           throw e
         case NonFatal(e) =>
-          logError("Exception encountered", e)
+          log.error("Exception encountered", e)
           throw new IOException(e)
       }
     }

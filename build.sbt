@@ -30,6 +30,7 @@ sparkComponents := Seq("sql")
 resolvers += "apache-snapshots" at "https://repository.apache.org/snapshots/"
 
 libraryDependencies ++= Seq(
+  "org.slf4j" % "slf4j-api" % "1.7.5",
   "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % "1.7.7"  % "provided" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api"),
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
