@@ -15,7 +15,11 @@
  */
 package com.databricks.spark
 
-import org.apache.spark.sql.{SQLContext, DataFrameReader, DataFrameWriter, DataFrame}
+import org.apache.avro.Schema
+import org.apache.avro.generic.GenericRecord
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql._
 
 package object avro {
 
@@ -31,7 +35,7 @@ package object avro {
 
   /**
    * Adds a method, `avro`, to DataFrameWriter that allows you to write avro files using
-   * the DataFileWriter
+   * the DataFrameWriter
    */
   implicit class AvroDataFrameWriter(writer: DataFrameWriter) {
     def avro: String => Unit = writer.format("com.databricks.spark.avro").save
@@ -39,9 +43,19 @@ package object avro {
 
   /**
    * Adds a method, `avro`, to DataFrameReader that allows you to read avro files using
-   * the DataFileReade
+   * the DataFrameReader
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
+  }
+
+  /**
+   * Adds a signature to [[SQLContext.createDataFrame]], to create a DataFrame from an RDD of
+   * GenericRecords.
+   */
+  implicit class AvroSQLContext(sqlContext: SQLContext) {
+    def createDataFrame(rdd: RDD[GenericRecord], schema: Schema): DataFrame = {
+      AvroUtil.createDataFrame(sqlContext, rdd, schema)
+    }
   }
 }
