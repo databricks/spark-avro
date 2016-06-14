@@ -38,7 +38,8 @@ private[avro] object TestUtils {
     def convertToString(elem: Any): String = {
       elem match {
         case null => "NULL" // HashSets can't have null in them, so we use a string instead
-        case arrayBuf: ArrayBuffer[Any] => arrayBuf.toArray.deep.mkString(" ")
+        case arrayBuf: ArrayBuffer[_] =>
+          arrayBuf.asInstanceOf[ArrayBuffer[Any]].toArray.deep.mkString(" ")
         case arrayByte: Array[Byte] => arrayByte.deep.mkString(" ")
         case other => other.toString
       }

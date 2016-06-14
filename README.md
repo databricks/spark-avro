@@ -7,19 +7,24 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for Spark 1.4+.
+This documentation is for Spark 1.4+ and 2.0.
 
-This library has different versions for Spark 1.2, 1.3, and 1.4+:
+This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
 | ------------- |----------------------|
 | `1.2`         | `0.2.0`              |
 | `1.3`         | `1.0.0`              |
 | `1.4+`        | `2.0.1`              |
+| `2.0`         | `3.0.0`              |
 
 ## Linking
 
-You can link against this library (for Spark 1.4+) in your program at the following coordinates:
+This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed below.
+
+You can link against this library in your program at the following coordinates:
+
+### For Spark 1.4+
 
 Using SBT:
 
@@ -37,6 +42,26 @@ Using Maven:
 </dependency>
 ```
 
+### For Spark 2.0
+
+Using SBT:
+
+```
+libraryDependencies += "com.databricks" %% "spark-avro" % "3.0.0"
+```
+
+Using Maven:
+
+```xml
+<dependency>
+    <groupId>com.databricks</groupId>
+    <artifactId>spark-avro_2.10</artifactId>
+    <version>3.0.0</version>
+</dependency>
+```
+
+### With `spark-shell` or `spark-submit`
+
 This library can also be added to Spark jobs launched through `spark-shell` or `spark-submit` by using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
@@ -44,10 +69,7 @@ For example, to include it when starting the spark shell:
 $ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
 ```
 
-Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
-The `--packages` argument can also be used with `bin/spark-submit`.
-
-This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed above.
+Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
 
@@ -112,7 +134,7 @@ These examples use an Avro file available for download
 ```scala
 // import needed for the .avro method to be added
 import com.databricks.spark.avro._
-		
+
 val sqlContext = new SQLContext(sc)
 
 // The Avro records get converted to Spark types, filtered, and
@@ -126,12 +148,12 @@ Alternativly you can specify the format to use instead:
 ```scala
 val sqlContext = new SQLContext(sc)
 val df = sqlContext.read
-	.format("com.databricks.spark.avro")
-	.load("src/test/resources/episodes.avro")
-	
+    .format("com.databricks.spark.avro")
+    .load("src/test/resources/episodes.avro")
+
 df.filter("doctor > 5").write
-	.format("com.databricks.spark.avro")
-	.save("/tmp/output")
+    .format("com.databricks.spark.avro")
+    .save("/tmp/output")
 ```
 
 You can also specify Avro compression options:
@@ -160,10 +182,10 @@ val sqlContext = new SQLContext(sc)
 import sqlContext.implicits._
 
 val df = Seq((2012, 8, "Batman", 9.8),
-	(2012, 8, "Hero", 8.7),
-	(2012, 7, "Robot", 5.5),
-	(2011, 7, "Git", 2.0))
-	.toDF("year", "month", "title", "rating")
+    (2012, 8, "Hero", 8.7),
+    (2012, 7, "Robot", 5.5),
+    (2011, 7, "Git", 2.0))
+    .toDF("year", "month", "title", "rating")
 
 df.write.partitionBy("year", "month").avro("/tmp/output")
 ```
@@ -196,8 +218,8 @@ DataFrame df = sqlContext.read().format("com.databricks.spark.avro")
 
 // Saves the subset of the Avro records read in
 df.filter($"age > 5").write()
-	.format("com.databricks.spark.avro")
-	.save("/tmp/output");
+    .format("com.databricks.spark.avro")
+    .save("/tmp/output");
 ```
 
 
