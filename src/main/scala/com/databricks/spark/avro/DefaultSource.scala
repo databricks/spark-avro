@@ -141,52 +141,60 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       spark.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
     (file: PartitionedFile) => {
-      val reader = {
-        val conf = broadcastedConf.value.value
-        val in = new FsInput(new Path(new URI(file.filePath)), conf)
-        DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
-      }
+      val conf = broadcastedConf.value.value
 
-      val fieldExtractors = {
-        val avroSchema = reader.getSchema
-        requiredSchema.zipWithIndex.map { case (field, index) =>
-          val avroField = Option(avroSchema.getField(field.name)).getOrElse {
-            throw new IllegalArgumentException(
-              s"""Cannot find required column ${field.name} in Avro schema:"
-                 |
+      if (
+        conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true) &&
+        !file.filePath.endsWith(".avro")
+      ) {
+        Iterator.empty
+      } else {
+        val reader = {
+          val in = new FsInput(new Path(new URI(file.filePath)), conf)
+          DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
+        }
+
+        val fieldExtractors = {
+          val avroSchema = reader.getSchema
+          requiredSchema.zipWithIndex.map { case (field, index) =>
+            val avroField = Option(avroSchema.getField(field.name)).getOrElse {
+              throw new IllegalArgumentException(
+                s"""Cannot find required column ${field.name} in Avro schema:"
+                    |
                  |${avroSchema.toString(true)}
                """.stripMargin
-            )
-          }
+              )
+            }
 
-          val converter = SchemaConverters.createConverterToSQL(avroField.schema())
+            val converter = SchemaConverters.createConverterToSQL(avroField.schema())
 
-          (record: GenericRecord, buffer: Array[Any]) => {
-            buffer(index) = converter(record.get(avroField.pos()))
+            (record: GenericRecord, buffer: Array[Any]) => {
+              buffer(index) = converter(record.get(avroField.pos()))
+            }
           }
         }
-      }
 
-      new Iterator[InternalRow] {
-        private val rowBuffer = Array.fill[Any](requiredSchema.length)(null)
+        new Iterator[InternalRow] {
+          private val rowBuffer = Array.fill[Any](requiredSchema.length)(null)
 
-        private val safeDataRow = new GenericRow(rowBuffer)
+          private val safeDataRow = new GenericRow(rowBuffer)
 
-        // Used to convert `Row`s containing data columns into `InternalRow`s.
-        private val encoderForDataColumns = RowEncoder(requiredSchema)
+          // Used to convert `Row`s containing data columns into `InternalRow`s.
+          private val encoderForDataColumns = RowEncoder(requiredSchema)
 
-        override def hasNext: Boolean = reader.hasNext
+          override def hasNext: Boolean = reader.hasNext
 
-        override def next(): InternalRow = {
-          val record = reader.next()
+          override def next(): InternalRow = {
+            val record = reader.next()
 
-          var i = 0
-          while (i < requiredSchema.length) {
-            fieldExtractors(i)(record, rowBuffer)
-            i += 1
+            var i = 0
+            while (i < requiredSchema.length) {
+              fieldExtractors(i)(record, rowBuffer)
+              i += 1
+            }
+
+            encoderForDataColumns.toRow(safeDataRow)
           }
-
-          encoderForDataColumns.toRow(safeDataRow)
         }
       }
     }

@@ -18,6 +18,7 @@ package com.databricks.spark.avro
 
 import java.io.{File, FileNotFoundException}
 import java.nio.ByteBuffer
+import java.nio.file.{FileSystems, Files}
 import java.sql.Timestamp
 import java.util.UUID
 
@@ -462,6 +463,26 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       df.write.avro(tempSaveDir)
       val newDf = sqlContext.read.avro(tempSaveDir)
+      assert(newDf.count == 8)
+    }
+  }
+
+  test("test load with non-Avro file") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      val df = sqlContext.read.avro(episodesFile)
+      assert(df.count == 8)
+
+      val tempSaveDir = s"$tempDir/save/"
+      df.write.avro(tempSaveDir)
+
+      Files.createFile(new File(tempSaveDir, "non-avro").toPath)
+
+      val newDf = sqlContext
+        .read
+        .option(DefaultSource.IgnoreFilesWithoutExtensionProperty, "true")
+        .avro(tempSaveDir)
+
       assert(newDf.count == 8)
     }
   }
