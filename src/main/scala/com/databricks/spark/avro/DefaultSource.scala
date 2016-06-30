@@ -143,6 +143,10 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
     (file: PartitionedFile) => {
       val conf = broadcastedConf.value.value
 
+      // TODO Removes this check once `FileFormat` gets a general file filtering interface method.
+      // Doing input file filtering is improper because we may generate empty tasks that process no
+      // input files but stress the scheduler. We should probably add a more general input file
+      // filtering mechanism for `FileFormat` data sources. See SPARK-16317.
       if (
         conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true) &&
         !file.filePath.endsWith(".avro")
@@ -160,9 +164,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
             val avroField = Option(avroSchema.getField(field.name)).getOrElse {
               throw new IllegalArgumentException(
                 s"""Cannot find required column ${field.name} in Avro schema:"
-                    |
-                 |${avroSchema.toString(true)}
-               """.stripMargin
+                   |
+                   |${avroSchema.toString(true)}
+                 """.stripMargin
               )
             }
 
