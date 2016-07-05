@@ -209,7 +209,7 @@ private[avro] object DefaultSource {
   val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
 
   class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
-    private val log = LoggerFactory.getLogger(getClass)
+    @transient private lazy val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
       out.defaultWriteObject()
