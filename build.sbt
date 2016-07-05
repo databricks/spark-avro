@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "1.6.1"
+sparkVersion := "1.6.2"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
