@@ -16,7 +16,7 @@
 
 package com.databricks.spark.avro
 
-import java.io.{FileNotFoundException, IOException, ObjectInputStream, ObjectOutputStream}
+import java.io._
 import java.net.URI
 import java.util.zip.Deflater
 
@@ -209,7 +209,7 @@ private[avro] object DefaultSource {
   val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
 
   class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
-    private val log = LoggerFactory.getLogger(getClass)
+    @transient private[avro] lazy val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
       out.defaultWriteObject()
