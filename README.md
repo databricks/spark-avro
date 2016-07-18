@@ -12,11 +12,11 @@ This documentation is for Spark 1.4+ and 2.0.
 This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
-| ------------- |----------------------|
-| `1.2`         | `0.2.0`              |
-| `1.3`         | `1.0.0`              |
-| `1.4+`        | `2.0.1`              |
-| `2.0`         | `3.0.0`              |
+| ------------- | ------------------------------------------------ |
+| `1.2`         | `0.2.0`                                          |
+| `1.3`         | `1.0.0`                                          |
+| `1.4+`        | `2.0.1`                                          |
+| `2.0`         | `3.0.0` (to be released)                         |
 
 ## Linking
 
