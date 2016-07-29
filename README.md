@@ -143,7 +143,7 @@ val df = sqlContext.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
-Alternativly you can specify the format to use instead:
+Alternatively you can specify the format to use instead:
 
 ```scala
 val sqlContext = new SQLContext(sc)
