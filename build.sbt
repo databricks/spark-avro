@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.0.0-SNAPSHOT"
+sparkVersion := "2.0.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -25,9 +25,6 @@ spIncludeMaven := true
 spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
-
-// TODO: remove after Spark 2.0.0 is released:
-resolvers += "apache-snapshots" at "https://repository.apache.org/snapshots/"
 
 libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.5",

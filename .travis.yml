@@ -5,14 +5,14 @@ cache:
     - $HOME/.ivy2
 matrix:
   include:
-    # Spark 2.0.0-SNAPSHOT and Scala 2.11
+    # Spark 2.0.0 and Scala 2.11
     - jdk: openjdk7
       scala: 2.11.7
-      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0-SNAPSHOT"
-    # Spark 2.0.0-SNAPSHOT and Scala 2.10
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0"
+    # Spark 2.0.0 and Scala 2.10
     - jdk: openjdk7
       scala: 2.10.4
-      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0-SNAPSHOT"
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0"
 script:
   - sbt -Dhadoop.testVersion=$TEST_HADOOP_VERSION -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
   - sbt ++$TRAVIS_SCALA_VERSION scalastyle
