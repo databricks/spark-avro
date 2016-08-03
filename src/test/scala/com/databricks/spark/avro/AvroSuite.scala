@@ -486,24 +486,4 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(newDf.count == 8)
     }
   }
-
-  test("#139: deserializing SerializableConfiguration") {
-    import DefaultSource.SerializableConfiguration
-
-    val conf = new SerializableConfiguration(sqlContext.sparkContext.hadoopConfiguration)
-
-    val byteArrayOutputStream = new ByteArrayOutputStream()
-    val objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)
-    objectOutputStream.writeObject(conf)
-
-    val bytes = byteArrayOutputStream.toByteArray
-    val byteArrayInputStream = new ByteArrayInputStream(bytes)
-    val objectInputStream = new ObjectInputStream(byteArrayInputStream)
-
-    objectInputStream.readObject() match {
-      case c: DefaultSource.SerializableConfiguration => assert(c.log != null)
-      case other => fail(
-        s"Expecting ${classOf[SerializableConfiguration]}, but got ${other.getClass}.")
-    }
-  }
 }
