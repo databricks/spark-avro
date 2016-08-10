@@ -395,6 +395,24 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(e2.length == 8)
   }
 
+  test("support user provided avro schema") {
+    val avroSchema =
+      """
+        |{
+        |  "type" : "record",
+        |  "name" : "test_schema",
+        |  "fields" : [{
+        |    "name" : "string",
+        |    "type" : "string",
+        |    "doc"  : "Meaningless string of characters"
+        |  }]
+        |}
+      """.stripMargin
+    val result = spark.read.option(DefaultSource.AVRO_SCHEMA, avroSchema).avro(testFile).collect()
+    val expected = spark.read.avro(testFile).select("string").collect()
+    assert(result.sameElements(expected))
+  }
+
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files

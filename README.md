@@ -156,6 +156,21 @@ val df = spark.read
 df.filter("doctor > 5").write.format("com.databricks.spark.avro").save("/tmp/output")
 ```
 
+You can specify a custom Avro schema:
+
+```scala
+import org.apache.avro.Schema
+import org.apache.spark.sql.SparkSession
+
+val schema = new Schema.Parser().parse(new File("user.avsc"))
+val spark = SparkSession.builder().master("local").getOrCreate()
+spark
+  .read
+  .format("com.databricks.spark.avro")
+  .option("avroSchema", schema.toString)
+  .load("src/test/resources/episodes.avro").show()
+```
+
 You can also specify Avro compression options:
 
 ```scala
