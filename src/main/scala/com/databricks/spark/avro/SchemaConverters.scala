@@ -136,7 +136,7 @@ object SchemaConverters {
       val avroType = avroSchema.getType
       (sqlType, avroType) match {
         // Avro strings are in Utf8, so we have to call toString on them
-        case (StringType, STRING) | (_: StringType, ENUM) =>
+        case (StringType, STRING) | (StringType, ENUM) =>
           (item: Any) => if (item == null) null else item.toString
         // Byte arrays are reused by avro, so we have to make a copy of them.
         case (BinaryType, FIXED) =>
@@ -156,8 +156,8 @@ object SchemaConverters {
               bytes.get(javaBytes)
               javaBytes
             }
-        case (IntegerType, INT) | (_: BooleanType, BOOLEAN) | (_: DoubleType, DOUBLE) |
-             (_: FloatType, FLOAT) | (_: LongType, LONG) =>
+        case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
+             (FloatType, FLOAT) | (LongType, LONG) =>
           // No need to convert the value
           identity
         case (struct: StructType, RECORD) =>
@@ -191,23 +191,23 @@ object SchemaConverters {
               // clear the value
               java.util.Arrays.fill(result.asInstanceOf[Array[AnyRef]], null)
               val record = item.asInstanceOf[GenericRecord]
-              var idx = 0
-              while (idx < converters.length) {
-                if (converters(idx) != null) {
-                  val converter = converters(idx)._1
-                  val avroFieldIndex = converters(idx)._2
-                  result(idx) = converter(record.get(avroFieldIndex))
+              var index = 0
+              while (index < converters.length) {
+                if (converters(index) != null) {
+                  val converter = converters(index)._1
+                  val avroFieldIndex = converters(index)._2
+                  result(index) = converter(record.get(avroFieldIndex))
                 }
-                idx += 1
+                index += 1
               }
               row
             }
           }
-        case (array: ArrayType, ARRAY) =>
-          val elementConverter = createConverter(avroSchema.getElementType, array.elementType,
+        case (arrayType: ArrayType, ARRAY) =>
+          val elementConverter = createConverter(avroSchema.getElementType, arrayType.elementType,
             path)
-          val allowsNull = array.containsNull
-          (item: Any) =>
+          val allowsNull = arrayType.containsNull
+          (item: Any) => {
             if (item == null) {
               null
             } else {
@@ -220,21 +220,23 @@ object SchemaConverters {
                 }
               }
             }
-
+          }
         case (mapType: MapType, MAP) if mapType.keyType == StringType =>
           val valueConverter = createConverter(avroSchema.getValueType, mapType.valueType, path)
           val allowsNull = mapType.valueContainsNull
-          (item: Any) => if (item == null) {
-            null
-          } else {
-            item.asInstanceOf[HashMap[Any, Any]].map { x =>
-              if (x._2 == null && !allowsNull) {
-                throw new RuntimeException(s"Map value at path ${path.mkString(".")} is not " +
-                  "allowed to be null")
-              } else {
-                (x._1.toString, valueConverter(x._2))
-              }
-            }.toMap
+          (item: Any) => {
+            if (item == null) {
+              null
+            } else {
+              item.asInstanceOf[HashMap[Any, Any]].map { x =>
+                if (x._2 == null && !allowsNull) {
+                  throw new RuntimeException(s"Map value at path ${path.mkString(".")} is not " +
+                    "allowed to be null")
+                } else {
+                  (x._1.toString, valueConverter(x._2))
+                }
+              }.toMap
+            }
           }
         case (sqlType, UNION) =>
           if (avroSchema.getTypes.exists(_.getType == NULL)) {
