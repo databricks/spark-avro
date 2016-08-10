@@ -134,39 +134,40 @@ These examples use an Avro file available for download
 ```scala
 // import needed for the .avro method to be added
 import com.databricks.spark.avro._
+import org.apache.spark.sql.SparkSession
 
-val sqlContext = new SQLContext(sc)
+val spark = SparkSession.builder().master("local").getOrCreate()
 
 // The Avro records get converted to Spark types, filtered, and
 // then written back out as Avro records
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val df = spark.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
 Alternatively you can specify the format to use instead:
 
 ```scala
-val sqlContext = new SQLContext(sc)
-val df = sqlContext.read
+val spark = SparkSession.builder().master("local").getOrCreate()
+val df = spark.read
     .format("com.databricks.spark.avro")
     .load("src/test/resources/episodes.avro")
 
-df.filter("doctor > 5").write
-    .format("com.databricks.spark.avro")
-    .save("/tmp/output")
+df.filter("doctor > 5").write.format("com.databricks.spark.avro").save("/tmp/output")
 ```
 
 You can also specify Avro compression options:
 
 ```scala
 import com.databricks.spark.avro._
-val sqlContext = new SQLContext(sc)
+import org.apache.spark.sql.SparkSession
+
+val spark = SparkSession.builder().master("local").getOrCreate()
 
 // configuration to use deflate compression
-sqlContext.setConf("spark.sql.avro.compression.codec", "deflate")
-sqlContext.setConf("spark.sql.avro.deflate.level", "5")
+spark.conf.set("spark.sql.avro.compression.codec", "deflate")
+spark.conf.set("spark.sql.avro.deflate.level", "5")
 
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val df = spark.read.avro("src/test/resources/episodes.avro")
 
 // writes out compressed Avro records
 df.write.avro("/tmp/output")
@@ -176,27 +177,29 @@ You can write partitioned Avro records like this:
 
 ```scala
 import com.databricks.spark.avro._
+import org.apache.spark.sql.SparkSession
 
-val sqlContext = new SQLContext(sc)
+val spark = SparkSession.builder().master("local").getOrCreate()
 
-import sqlContext.implicits._
-
-val df = Seq((2012, 8, "Batman", 9.8),
+val df = spark.createDataFrame(
+  Seq(
+    (2012, 8, "Batman", 9.8),
     (2012, 8, "Hero", 8.7),
     (2012, 7, "Robot", 5.5),
     (2011, 7, "Git", 2.0))
-    .toDF("year", "month", "title", "rating")
+  ).toDF("year", "month", "title", "rating")
 
-df.write.partitionBy("year", "month").avro("/tmp/output")
+df.toDF.write.partitionBy("year", "month").avro("/tmp/output")
 ```
 
 You can specify the record name and namespace like this:
 
 ```scala
 import com.databricks.spark.avro._
+import org.apache.spark.sql.SparkSession
 
-val sqlContext = new SQLContext(sc)
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val spark = SparkSession.builder().master("local").getOrCreate()
+val df = spark.read.avro("src/test/resources/episodes.avro")
 
 val name = "AvroTest"
 val namespace = "com.databricks.spark.avro"
@@ -209,29 +212,29 @@ df.write.options(parameters).avro("/tmp/output")
 
 ```java
 import org.apache.spark.sql.*;
+import org.apache.spark.sql.functions;
 
-SQLContext sqlContext = new SQLContext(sc);
+SparkSession spark = SparkSession.builder().master("local").getOrCreate();
 
 // Creates a DataFrame from a specified file
-DataFrame df = sqlContext.read().format("com.databricks.spark.avro")
-    .load("src/test/resources/episodes.avro");
+Dataset<Row> df = spark.read().format("com.databricks.spark.avro")
+  .load("src/test/resources/episodes.avro");
 
 // Saves the subset of the Avro records read in
-df.filter($"age > 5").write()
-    .format("com.databricks.spark.avro")
-    .save("/tmp/output");
+df.filter(functions.expr("doctor > 5")).write()
+  .format("com.databricks.spark.avro")
+  .save("/tmp/output");
 ```
-
 
 ### Python API
 
 ```python
 # Creates a DataFrame from a specified directory
-df = sqlContext.read.format("com.databricks.spark.avro").load("src/test/resources/episodes.avro")
+df = spark.read.format("com.databricks.spark.avro").load("src/test/resources/episodes.avro")
 
 #  Saves the subset of the Avro records read in
-subset = df.where("age > 5")
-subset.write.format("com.databricks.spark.avro").save("output")
+subset = df.where("doctor > 5")
+subset.write.format("com.databricks.spark.avro").save("/tmp/output")
 ```
 
 ### SQL API
@@ -242,9 +245,6 @@ CREATE TEMPORARY TABLE episodes
 USING com.databricks.spark.avro
 OPTIONS (path "src/test/resources/episodes.avro")
 ```
-
-
-
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),
 which is automatically downloaded by the included shell script.  To build a JAR file simply run

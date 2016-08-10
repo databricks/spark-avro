@@ -23,8 +23,8 @@ import scala.util.Random
 
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.apache.spark.SparkContext
-import org.apache.spark.sql.{SQLContext, Row}
+
+import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.types._
 
 /**
@@ -61,12 +61,13 @@ object AvroWriteBenchmark {
 
     println(s"\n\n\nPreparing for a benchmark test - creating a RDD with $numberOfRows rows\n\n\n")
 
-    val sqlContext = new SQLContext(new SparkContext("local[2]", "AvroReadBenchmark"))
+    val spark = SparkSession.builder().master("local[2]").appName("AvroReadBenchmark")
+      .getOrCreate()
 
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
-    val testDataFrame = sqlContext.createDataFrame(
-      sqlContext.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow()),
+    val testDataFrame = spark.createDataFrame(
+      spark.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow()),
       testSchema)
 
     println("\n\n\nStaring benchmark test - writing a DataFrame as avro file\n\n\n")
@@ -81,6 +82,6 @@ object AvroWriteBenchmark {
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
     FileUtils.deleteDirectory(tempDir)
-    sqlContext.sparkContext.stop()  // Otherwise scary exception message appears
+    spark.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }
