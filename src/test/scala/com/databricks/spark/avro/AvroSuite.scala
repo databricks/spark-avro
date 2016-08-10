@@ -24,6 +24,7 @@ import java.util.UUID
 
 import scala.collection.JavaConversions._
 
+import com.databricks.spark.avro.SchemaConverters.InCompatibleSchema
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
@@ -104,7 +105,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[UnsupportedOperationException] {
+      intercept[InCompatibleSchema] {
         sqlContext.read.avro(s"$dir.avro")
       }
     }
@@ -153,7 +154,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[UnsupportedOperationException] {
+      intercept[InCompatibleSchema] {
         sqlContext.read.avro(s"$dir.avro")
       }
     }
@@ -485,5 +486,45 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       assert(newDf.count == 8)
     }
+  }
+
+  test("read avro with user defined schema: read partial columns") {
+    val partialColumns = StructType(Seq(
+      StructField("string", StringType, false),
+      StructField("simple_map", MapType(StringType, IntegerType), false),
+      StructField("complex_map", MapType(StringType, MapType(StringType, StringType)), false),
+      StructField("union_string_null", StringType, true),
+      StructField("union_int_long_null", LongType, true),
+      StructField("fixed3", BinaryType, true),
+      StructField("fixed2", BinaryType, true),
+      StructField("enum", StringType, false),
+      StructField("record", StructType(Seq(StructField("value_field", StringType, false))), false),
+      StructField("array_of_boolean", ArrayType(BooleanType), false),
+      StructField("bytes", BinaryType, true)))
+    val withSchema = sqlContext.read.schema(partialColumns).avro(testFile).collect()
+    val withOutSchema = sqlContext
+      .read
+      .avro(testFile)
+      .select("string", "simple_map", "complex_map", "union_string_null", "union_int_long_null",
+        "fixed3", "fixed2", "enum", "record", "array_of_boolean", "bytes")
+      .collect()
+    assert(withSchema.sameElements(withOutSchema))
+  }
+
+  test("read avro with user defined schema: read non-exist columns") {
+    val schema =
+      StructType(
+        Seq(
+          StructField("non_exist_string", StringType, true),
+          StructField(
+            "record",
+            StructType(Seq(
+              StructField("non_exist_field", StringType, false),
+              StructField("non_exist_field2", StringType, false))),
+            false)))
+    val withEmptyColumn = sqlContext.read.schema(schema).avro(testFile).collect()
+    Seq(null, Tuple1(null))
+
+    assert(withEmptyColumn.forall(_ == Row(null: String, Row(null: String, null: String))))
   }
 }

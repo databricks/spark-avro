@@ -160,31 +160,10 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
         }
 
-        val fieldExtractors = {
-          val avroSchema = reader.getSchema
-          requiredSchema.zipWithIndex.map { case (field, index) =>
-            val avroField = Option(avroSchema.getField(field.name)).getOrElse {
-              throw new IllegalArgumentException(
-                s"""Cannot find required column ${field.name} in Avro schema:"
-                   |
-                   |${avroSchema.toString(true)}
-                 """.stripMargin
-              )
-            }
+        val rowConverter = SchemaConverters.createConverterToSQL(reader.getSchema, requiredSchema)
 
-            val converter = SchemaConverters.createConverterToSQL(avroField.schema())
-
-            (record: GenericRecord, buffer: Array[Any]) => {
-              buffer(index) = converter(record.get(avroField.pos()))
-            }
-          }
-        }
 
         new Iterator[InternalRow] {
-          private val rowBuffer = Array.fill[Any](requiredSchema.length)(null)
-
-          private val safeDataRow = new GenericRow(rowBuffer)
-
           // Used to convert `Row`s containing data columns into `InternalRow`s.
           private val encoderForDataColumns = RowEncoder(requiredSchema)
 
@@ -192,13 +171,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
 
           override def next(): InternalRow = {
             val record = reader.next()
+            val safeDataRow = rowConverter(record).asInstanceOf[GenericRow]
 
-            var i = 0
-            while (i < requiredSchema.length) {
-              fieldExtractors(i)(record, rowBuffer)
-              i += 1
-            }
-
+            // The safeDataRow is reused, we must do a copy
             encoderForDataColumns.toRow(safeDataRow)
           }
         }
