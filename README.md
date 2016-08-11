@@ -67,6 +67,7 @@ For example, to include it when starting the spark shell:
 
 ```
 $ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
+$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.0.0
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
