@@ -30,8 +30,7 @@ import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.commons.io.FileUtils
 
-import org.apache.spark.SparkContext
-import org.apache.spark.sql.{AnalysisException, Row, SQLContext}
+import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -39,29 +38,29 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
 
-  private var sqlContext: SQLContext = _
+  private var spark: SparkSession = _
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    sqlContext = new SQLContext(new SparkContext("local[2]", "AvroSuite"))
+    spark = SparkSession.builder().master("local[2]").appName("AvroSuite").getOrCreate()
   }
 
   override protected def afterAll(): Unit = {
     try {
-      sqlContext.sparkContext.stop()
+      spark.sparkContext.stop()
     } finally {
       super.afterAll()
     }
   }
 
   test("reading and writing partitioned data") {
-    val df = sqlContext.read.avro(episodesFile)
+    val df = spark.read.avro(episodesFile)
     val fields = List("title", "air_date", "doctor")
     for (field <- fields) {
       TestUtils.withTempDir { dir =>
         val outputDir = s"$dir/${UUID.randomUUID}"
         df.write.partitionBy(field).avro(outputDir)
-        val input = sqlContext.read.avro(outputDir)
+        val input = spark.read.avro(outputDir)
         // makes sure that no fields got dropped.
         // We convert Rows to Seqs in order to work around SPARK-10325
         assert(input.select(field).collect().map(_.toSeq).toSet ===
@@ -71,22 +70,22 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("request no fields") {
-    val df = sqlContext.read.avro(episodesFile)
+    val df = spark.read.avro(episodesFile)
     df.registerTempTable("avro_table")
-    assert(sqlContext.sql("select count(*) from avro_table").collect().head === Row(8))
+    assert(spark.sql("select count(*) from avro_table").collect().head === Row(8))
   }
 
   test("convert formats") {
     TestUtils.withTempDir { dir =>
-      val df = sqlContext.read.avro(episodesFile)
+      val df = spark.read.avro(episodesFile)
       df.write.parquet(dir.getCanonicalPath)
-      assert(sqlContext.read.parquet(dir.getCanonicalPath).count() === df.count)
+      assert(spark.read.parquet(dir.getCanonicalPath).count() === df.count)
     }
   }
 
   test("rearrange internal schema") {
     TestUtils.withTempDir { dir =>
-      val df = sqlContext.read.avro(episodesFile)
+      val df = spark.read.avro(episodesFile)
       df.select("doctor", "title").write.avro(dir.getCanonicalPath)
     }
   }
@@ -105,7 +104,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.flush()
       dataFileWriter.close()
       intercept[UnsupportedOperationException] {
-        sqlContext.read.avro(s"$dir.avro")
+        spark.read.avro(s"$dir.avro")
       }
     }
   }
@@ -128,7 +127,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.flush()
       dataFileWriter.close()
 
-      val df = sqlContext.read.avro(s"$dir.avro")
+      val df = spark.read.avro(s"$dir.avro")
       assert(df.first() == Row(8))
     }
   }
@@ -154,7 +153,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.flush()
       dataFileWriter.close()
       intercept[UnsupportedOperationException] {
-        sqlContext.read.avro(s"$dir.avro")
+        spark.read.avro(s"$dir.avro")
       }
     }
   }
@@ -167,14 +166,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         StructField("array", ArrayType(ShortType), true),
         StructField("map", MapType(StringType, StringType), true),
         StructField("struct", StructType(Seq(StructField("int", IntegerType, true))))))
-      val rdd = sqlContext.sparkContext.parallelize(Seq[Row](
+      val rdd = spark.sparkContext.parallelize(Seq[Row](
         Row(null, new Timestamp(1), Array[Short](1,2,3), null, null),
         Row(null, null, null, null, null),
         Row(null, null, null, null, null),
         Row(null, null, null, null, null)))
-      val df = sqlContext.createDataFrame(rdd, schema)
+      val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
-      assert(sqlContext.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
     }
   }
 
@@ -186,14 +185,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         StructField("byte", ByteType, true),
         StructField("boolean", BooleanType, true)
       ))
-      val rdd = sqlContext.sparkContext.parallelize(Seq(
+      val rdd = spark.sparkContext.parallelize(Seq(
         Row(1f, 1.toShort, 1.toByte, true),
         Row(2f, 2.toShort, 2.toByte, true),
         Row(3f, 3.toShort, 3.toByte, true)
       ))
-      val df = sqlContext.createDataFrame(rdd, schema)
+      val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
-      assert(sqlContext.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
     }
   }
 
@@ -218,16 +217,16 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         arrayOfByte(i) = i.toByte
       }
 
-      val rdd = sqlContext.sparkContext.parallelize(Seq(
+      val rdd = spark.sparkContext.parallelize(Seq(
         Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f),
           Array[Boolean](true, false, true, false), Array[Long](1L, 2L), Array[Double](1.0, 2.0),
           Array[BigDecimal](BigDecimal.valueOf(3)), Array[Array[Byte]](arrayOfByte, arrayOfByte),
           Array[Timestamp](new Timestamp(0)),
           Array[Array[String]](Array[String]("CSH, tearing down the walls that divide us", "-jd")),
           Array[Row](Row("Bobby G. can't swim")))))
-      val df = sqlContext.createDataFrame(rdd, testSchema)
+      val df = spark.createDataFrame(rdd, testSchema)
       df.write.avro(dir.toString)
-      assert(sqlContext.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
     }
   }
 
@@ -240,13 +239,13 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val snappyDir = s"$dir/snappy"
       val fakeDir = s"$dir/fake"
 
-      val df = sqlContext.read.avro(testFile)
-      sqlContext.setConf(AVRO_COMPRESSION_CODEC, "uncompressed")
+      val df = spark.read.avro(testFile)
+      spark.conf.set(AVRO_COMPRESSION_CODEC, "uncompressed")
       df.write.avro(uncompressDir)
-      sqlContext.setConf(AVRO_COMPRESSION_CODEC, "deflate")
-      sqlContext.setConf(AVRO_DEFLATE_LEVEL, "9")
+      spark.conf.set(AVRO_COMPRESSION_CODEC, "deflate")
+      spark.conf.set(AVRO_DEFLATE_LEVEL, "9")
       df.write.avro(deflateDir)
-      sqlContext.setConf(AVRO_COMPRESSION_CODEC, "snappy")
+      spark.conf.set(AVRO_COMPRESSION_CODEC, "snappy")
       df.write.avro(snappyDir)
 
       val uncompressSize = FileUtils.sizeOfDirectory(new File(uncompressDir))
@@ -259,61 +258,61 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("dsl test") {
-    val results = sqlContext.read.avro(episodesFile).select("title").collect()
+    val results = spark.read.avro(episodesFile).select("title").collect()
     assert(results.length === 8)
   }
 
   test("support of various data types") {
     // This test uses data from test.avro. You can see the data and the schema of this file in
     // test.json and test.avsc
-    val all = sqlContext.read.avro(testFile).collect()
+    val all = spark.read.avro(testFile).collect()
     assert(all.length == 3)
 
-    val str = sqlContext.read.avro(testFile).select("string").collect()
+    val str = spark.read.avro(testFile).select("string").collect()
     assert(str.map(_(0)).toSet.contains("Terran is IMBA!"))
 
-    val simple_map = sqlContext.read.avro(testFile).select("simple_map").collect()
+    val simple_map = spark.read.avro(testFile).select("simple_map").collect()
     assert(simple_map(0)(0).getClass.toString.contains("Map"))
     assert(simple_map.map(_(0).asInstanceOf[Map[String, Some[Int]]].size).toSet == Set(2, 0))
 
-    val union0 = sqlContext.read.avro(testFile).select("union_string_null").collect()
+    val union0 = spark.read.avro(testFile).select("union_string_null").collect()
     assert(union0.map(_(0)).toSet == Set("abc", "123", null))
 
-    val union1 = sqlContext.read.avro(testFile).select("union_int_long_null").collect()
+    val union1 = spark.read.avro(testFile).select("union_int_long_null").collect()
     assert(union1.map(_(0)).toSet == Set(66, 1, null))
 
-    val union2 = sqlContext.read.avro(testFile).select("union_float_double").collect()
+    val union2 = spark.read.avro(testFile).select("union_float_double").collect()
     assert(
       union2
         .map(x => new java.lang.Double(x(0).toString))
         .exists(p => Math.abs(p - Math.PI) < 0.001))
 
-    val fixed = sqlContext.read.avro(testFile).select("fixed3").collect()
+    val fixed = spark.read.avro(testFile).select("fixed3").collect()
     assert(fixed.map(_(0).asInstanceOf[Array[Byte]]).exists(p => p(1) == 3))
 
-    val enum = sqlContext.read.avro(testFile).select("enum").collect()
+    val enum = spark.read.avro(testFile).select("enum").collect()
     assert(enum.map(_(0)).toSet == Set("SPADES", "CLUBS", "DIAMONDS"))
 
-    val record = sqlContext.read.avro(testFile).select("record").collect()
+    val record = spark.read.avro(testFile).select("record").collect()
     assert(record(0)(0).getClass.toString.contains("Row"))
     assert(record.map(_(0).asInstanceOf[Row](0)).contains("TEST_STR123"))
 
-    val array_of_boolean = sqlContext.read.avro(testFile).select("array_of_boolean").collect()
+    val array_of_boolean = spark.read.avro(testFile).select("array_of_boolean").collect()
     assert(array_of_boolean.map(_(0).asInstanceOf[Seq[Boolean]].size).toSet == Set(3, 1, 0))
 
-    val bytes = sqlContext.read.avro(testFile).select("bytes").collect()
+    val bytes = spark.read.avro(testFile).select("bytes").collect()
     assert(bytes.map(_(0).asInstanceOf[Array[Byte]].length).toSet == Set(3, 1, 0))
   }
 
   test("sql test") {
-    sqlContext.sql(
+    spark.sql(
       s"""
          |CREATE TEMPORARY TABLE avroTable
          |USING com.databricks.spark.avro
          |OPTIONS (path "$episodesFile")
       """.stripMargin.replaceAll("\n", " "))
 
-    assert(sqlContext.sql("SELECT * FROM avroTable").collect().length === 8)
+    assert(spark.sql("SELECT * FROM avroTable").collect().length === 8)
   }
 
   test("conversion to avro and back") {
@@ -321,8 +320,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     // get the same values back.
     TestUtils.withTempDir { dir =>
       val avroDir = s"$dir/avro"
-      sqlContext.read.avro(testFile).write.avro(avroDir)
-      TestUtils.checkReloadMatchesSaved(sqlContext, testFile, avroDir)
+      spark.read.avro(testFile).write.avro(avroDir)
+      TestUtils.checkReloadMatchesSaved(spark, testFile, avroDir)
     }
   }
 
@@ -335,11 +334,11 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val parameters = Map("recordName" -> name, "recordNamespace" -> namespace)
 
       val avroDir = tempDir + "/namedAvro"
-      sqlContext.read.avro(testFile).write.options(parameters).avro(avroDir)
-      TestUtils.checkReloadMatchesSaved(sqlContext, testFile, avroDir)
+      spark.read.avro(testFile).write.options(parameters).avro(avroDir)
+      TestUtils.checkReloadMatchesSaved(spark, testFile, avroDir)
 
       // Look at raw file and make sure has namespace info
-      val rawSaved = sqlContext.sparkContext.textFile(avroDir)
+      val rawSaved = spark.sparkContext.textFile(avroDir)
       val schema = rawSaved.collect().mkString("")
       assert(schema.contains(name))
       assert(schema.contains(namespace))
@@ -359,29 +358,29 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       for (i <- arrayOfByte.indices) {
         arrayOfByte(i) = i.toByte
       }
-      val cityRDD = sqlContext.sparkContext.parallelize(Seq(
+      val cityRDD = spark.sparkContext.parallelize(Seq(
         Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
         Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
         Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
-      val cityDataFrame = sqlContext.createDataFrame(cityRDD, testSchema)
+      val cityDataFrame = spark.createDataFrame(cityRDD, testSchema)
 
       val avroDir = tempDir + "/avro"
       cityDataFrame.write.avro(avroDir)
-      assert(sqlContext.read.avro(avroDir).collect().length == 3)
+      assert(spark.read.avro(avroDir).collect().length == 3)
 
       // TimesStamps are converted to longs
-      val times = sqlContext.read.avro(avroDir).select("Time").collect()
+      val times = spark.read.avro(avroDir).select("Time").collect()
       assert(times.map(_(0)).toSet == Set(666, 777, 42))
 
       // DecimalType should be converted to string
-      val decimals = sqlContext.read.avro(avroDir).select("Decimal").collect()
+      val decimals = spark.read.avro(avroDir).select("Decimal").collect()
       assert(decimals.map(_(0)).contains("3.14"))
 
       // There should be a null entry
-      val length = sqlContext.read.avro(avroDir).select("Length").collect()
+      val length = spark.read.avro(avroDir).select("Length").collect()
       assert(length.map(_(0)).contains(null))
 
-      val binary = sqlContext.read.avro(avroDir).select("Binary").collect()
+      val binary = spark.read.avro(avroDir).select("Binary").collect()
       for (i <- arrayOfByte.indices) {
         assert(binary(1)(0).asInstanceOf[Array[Byte]](i) == arrayOfByte(i))
       }
@@ -389,10 +388,10 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("support of globbed paths") {
-    val e1 = sqlContext.read.avro("*/test/resources/episodes.avro").collect()
+    val e1 = spark.read.avro("*/test/resources/episodes.avro").collect()
     assert(e1.length == 8)
 
-    val e2 = sqlContext.read.avro("src/*/*/episodes.avro").collect()
+    val e2 = spark.read.avro("src/*/*/episodes.avro").collect()
     assert(e2.length == 8)
   }
 
@@ -400,23 +399,23 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
     // Directory given has no avro files
     intercept[AnalysisException] {
-      TestUtils.withTempDir(dir => sqlContext.read.avro(dir.getCanonicalPath))
+      TestUtils.withTempDir(dir => spark.read.avro(dir.getCanonicalPath))
     }
 
     intercept[AnalysisException] {
-      sqlContext.read.avro("very/invalid/path/123.avro")
+      spark.read.avro("very/invalid/path/123.avro")
     }
 
     // In case of globbed path that can't be matched to anything, another exception is thrown (and
     // exception message is helpful)
     intercept[AnalysisException] {
-      sqlContext.read.avro("*/*/*/*/*/*/*/something.avro")
+      spark.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 
     intercept[FileNotFoundException] {
       TestUtils.withTempDir { dir =>
         FileUtils.touch(new File(dir, "test"))
-        sqlContext.read.avro(dir.toString)
+        spark.read.avro(dir.toString)
       }
     }
 
@@ -427,13 +426,13 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val tempEmptyDir = s"$tempDir/sqlOverwrite"
       // Create a temp directory for table that will be overwritten
       new File(tempEmptyDir).mkdirs()
-      sqlContext.sql(
+      spark.sql(
         s"""
            |CREATE TEMPORARY TABLE episodes
            |USING com.databricks.spark.avro
            |OPTIONS (path "$episodesFile")
          """.stripMargin.replaceAll("\n", " "))
-      sqlContext.sql(
+      spark.sql(
         s"""
            |CREATE TEMPORARY TABLE episodesEmpty
            |(name string, air_date string, doctor int)
@@ -441,28 +440,28 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
            |OPTIONS (path "$tempEmptyDir")
          """.stripMargin.replaceAll("\n", " "))
 
-      assert(sqlContext.sql("SELECT * FROM episodes").collect().length === 8)
-      assert(sqlContext.sql("SELECT * FROM episodesEmpty").collect().isEmpty)
+      assert(spark.sql("SELECT * FROM episodes").collect().length === 8)
+      assert(spark.sql("SELECT * FROM episodesEmpty").collect().isEmpty)
 
-      sqlContext.sql(
+      spark.sql(
         s"""
            |INSERT OVERWRITE TABLE episodesEmpty
            |SELECT * FROM episodes
          """.stripMargin.replaceAll("\n", " "))
-      assert(sqlContext.sql("SELECT * FROM episodesEmpty").collect().length == 8)
+      assert(spark.sql("SELECT * FROM episodesEmpty").collect().length == 8)
     }
   }
 
   test("test save and load") {
     // Test if load works as expected
     TestUtils.withTempDir { tempDir =>
-      val df = sqlContext.read.avro(episodesFile)
+      val df = spark.read.avro(episodesFile)
       assert(df.count == 8)
 
       val tempSaveDir = s"$tempDir/save/"
 
       df.write.avro(tempSaveDir)
-      val newDf = sqlContext.read.avro(tempSaveDir)
+      val newDf = spark.read.avro(tempSaveDir)
       assert(newDf.count == 8)
     }
   }
@@ -470,7 +469,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("test load with non-Avro file") {
     // Test if load works as expected
     TestUtils.withTempDir { tempDir =>
-      val df = sqlContext.read.avro(episodesFile)
+      val df = spark.read.avro(episodesFile)
       assert(df.count == 8)
 
       val tempSaveDir = s"$tempDir/save/"
@@ -478,7 +477,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       Files.createFile(new File(tempSaveDir, "non-avro").toPath)
 
-      val newDf = sqlContext
+      val newDf = spark
         .read
         .option(DefaultSource.IgnoreFilesWithoutExtensionProperty, "true")
         .avro(tempSaveDir)

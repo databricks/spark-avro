@@ -16,7 +16,7 @@
 
 package com.databricks.spark.avro
 
-import java.io.{IOException, File}
+import java.io.{File, IOException}
 import java.nio.ByteBuffer
 import java.util
 
@@ -25,7 +25,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 import com.google.common.io.Files
-import org.apache.spark.sql.SQLContext
+
+import org.apache.spark.sql.SparkSession
 
 private[avro] object TestUtils {
 
@@ -33,7 +34,7 @@ private[avro] object TestUtils {
    * This function checks that all records in a file match the original
    * record.
    */
-  def checkReloadMatchesSaved(sqlContext: SQLContext, testFile: String, avroDir: String) = {
+  def checkReloadMatchesSaved(spark: SparkSession, testFile: String, avroDir: String) = {
 
     def convertToString(elem: Any): String = {
       elem match {
@@ -45,8 +46,8 @@ private[avro] object TestUtils {
       }
     }
 
-    val originalEntries = sqlContext.read.avro(testFile).collect()
-    val newEntries = sqlContext.read.avro(avroDir).collect()
+    val originalEntries = spark.read.avro(testFile).collect()
+    val newEntries = spark.read.avro(avroDir).collect()
 
     assert(originalEntries.length == newEntries.length)
 
