@@ -160,7 +160,9 @@ object SchemaConverters {
         (item: Any) => if (item == null) {
           null
         } else {
-          item.asInstanceOf[GenericData.Array[Any]].map(elementConverter)
+          val converted = item.asInstanceOf[java.util.Collection[Any]]
+          val genericWrapper = new GenericData.Array(schema, converted)
+          genericWrapper.map(elementConverter)
         }
       case MAP =>
         val valueConverter = createConverterToSQL(schema.getValueType)
