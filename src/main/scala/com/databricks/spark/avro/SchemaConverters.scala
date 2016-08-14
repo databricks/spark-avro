@@ -122,7 +122,7 @@ object SchemaConverters {
    * Returns a function that is used to convert avro types to their
    * corresponding sparkSQL representations.
    */
-  private[avro] def createConverterToSQL(schema: Schema): Any => Any = {
+  def createConverterToSQL(schema: Schema): Any => Any = {
     schema.getType match {
       // Avro strings are in Utf8, so we have to call toString on them
       case STRING | ENUM => (item: Any) => if (item == null) null else item.toString
