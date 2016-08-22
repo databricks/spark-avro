@@ -408,7 +408,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         |  }]
         |}
       """.stripMargin
-    val result = spark.read.option(DefaultSource.AVRO_SCHEMA, avroSchema).avro(testFile).collect()
+    val result = spark.read.option(DefaultSource.AvroSchema, avroSchema).avro(testFile).collect()
     val expected = spark.read.avro(testFile).select("string").collect()
     assert(result.sameElements(expected))
   }
