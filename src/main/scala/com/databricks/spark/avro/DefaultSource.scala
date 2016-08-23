@@ -22,10 +22,10 @@ import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
 
-import com.databricks.spark.avro.DefaultSource.{IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
+import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
 import com.esotericsoftware.kryo.DefaultSerializer
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
-import org.apache.avro.SchemaBuilder
+import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
@@ -72,7 +72,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       }
     }
 
-    val avroSchema = {
+    // User can specify an optional avro json schema.
+    val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse).getOrElse {
       val in = new FsInput(sampleFile.getPath, conf)
       val reader = DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
       reader.getSchema
@@ -209,6 +210,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
 
 private[avro] object DefaultSource {
   val IgnoreFilesWithoutExtensionProperty = "avro.mapred.ignore.inputs.without.extension"
+
+  val AvroSchema = "avroSchema"
 
   @DefaultSerializer(classOf[KryoJavaSerializer])
   class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
