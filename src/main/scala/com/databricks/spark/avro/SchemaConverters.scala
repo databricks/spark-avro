@@ -143,7 +143,30 @@ object SchemaConverters {
         case bytes: Array[Byte] => ByteBuffer.wrap(bytes)
       }
       case ByteType | ShortType | IntegerType | LongType |
-           FloatType | DoubleType | StringType | BooleanType => identity
+           FloatType | DoubleType | BooleanType => identity
+      case StringType => {
+        // TEMP SUPPORT FOR (UNIONS OF) ENUMS OF STRINGS
+        val elementSchema = schema.getType match {
+          case UNION => {
+            val remainingTypes = schema.getTypes.filterNot(_.getType == NULL)
+            if (remainingTypes.length != 1) throw new UnsupportedOperationException("Unsupported: Avro Union can only represent a SQL ArrayType if it's used for optional elements (null)")
+            else {
+              remainingTypes.get(0)
+            }
+          }
+          case _ => schema
+        }
+        elementSchema.getType match {
+          case ENUM => {
+            (item: Any) => {
+              println("IT IS AN ENUM: " + item)
+              if (item == null) null
+              else new GenericData.EnumSymbol(elementSchema, item.asInstanceOf[String])
+            }
+          }
+          case _ => identity
+        }
+      }
       case _: DecimalType => (item: Any) => if (item == null) null else item.toString
       case TimestampType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[java.sql.Timestamp].getTime
@@ -152,7 +175,7 @@ object SchemaConverters {
           case UNION => {
             val remainingTypes = schema.getTypes.filterNot(_.getType == NULL)
             if (remainingTypes.length != 1) throw new UnsupportedOperationException("Unsupported: Avro Union can only represent a SQL ArrayType if it's used for optional elements (null)")
-            else remainingTypes.get(0).getElementType
+            else remainingTypes.get(0).getElementType // DOES THIS WORK? not remainingTypes.get(0).getType instead?
           }
           case ARRAY => {
             schema.getElementType
@@ -190,11 +213,13 @@ object SchemaConverters {
           }
         }
       case structType: StructType => {
+        //println("** Struct matching schema " + schema.getType)
         schema.getType match {
           case UNION => {
             if (schema.getTypes.exists(_.getType == NULL)) {
               val remainingUnionTypes = schema.getTypes.filterNot(_.getType == NULL)
               if (remainingUnionTypes.size == 1) {
+                //println("PROCESSING UNION createConverterToAvro with " + structType.toString() + ", schema of field is " + remainingUnionTypes.get(0))
                 createConverterToAvro(structType, remainingUnionTypes.get(0))
               }
               else {
@@ -209,11 +234,14 @@ object SchemaConverters {
           }
           case _ => {
             val fieldConverters = structType.fields.map(f => {
-              createConverterToAvro(f.dataType, schema.getField(f.name).schema())
+              val s = schema.getField(f.name).schema()
+              //println("PROCESSING _ createConverterToAvro with " + f.dataType.toString() + ", schema of field " + f.name + " is " + s)
+              createConverterToAvro(f.dataType, s)
             })
             (item: Any) => {
               if (item == null) null
               else {
+                //println("FUNCTION for struct " + item)
                 val record = new GenericData.Record(schema)
                 val convertersIterator = fieldConverters.iterator
                 val fieldNamesIterator = dataType.asInstanceOf[StructType].fieldNames.iterator
