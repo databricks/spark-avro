@@ -145,11 +145,11 @@ object SchemaConverters {
       case ByteType | ShortType | IntegerType | LongType |
            FloatType | DoubleType | BooleanType => identity
       case StringType => {
-        // TEMP SUPPORT FOR (UNIONS OF) ENUMS OF STRINGS
+        // SUPPORT FOR (UNIONS OF) ENUMS OF STRINGS
         val elementSchema = schema.getType match {
           case UNION => {
             val remainingTypes = schema.getTypes.filterNot(_.getType == NULL)
-            if (remainingTypes.length != 1) throw new UnsupportedOperationException("Unsupported: Avro Union can only represent a SQL ArrayType if it's used for optional elements (null)")
+            if (remainingTypes.length != 1) throw new UnsupportedOperationException("Unsupported: String Union can only represent a SQL StringType if it's used for optional elements (null)")
             else {
               remainingTypes.get(0)
             }
@@ -159,9 +159,14 @@ object SchemaConverters {
         elementSchema.getType match {
           case ENUM => {
             (item: Any) => {
-              println("IT IS AN ENUM: " + item)
-              if (item == null) null
-              else new GenericData.EnumSymbol(elementSchema, item.asInstanceOf[String])
+              if (item == null) {
+                //println("IT IS A NULL ENUM: " + item)
+                null
+              }
+              else {
+                //println("WRITING ENUM: " + item)         
+                new GenericData.EnumSymbol(elementSchema, item.asInstanceOf[String])
+              }
             }
           }
           case _ => identity
