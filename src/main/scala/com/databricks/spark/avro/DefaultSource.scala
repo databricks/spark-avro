@@ -188,7 +188,8 @@ private[avro] object DefaultSource {
 
   val AvroSchema = "avroSchema"
 
-  class SerializableConfiguration(@transient var value: Configuration) extends Serializable with KryoSerializable {
+  class SerializableConfiguration(@transient var value: Configuration)
+      extends Serializable with KryoSerializable {
     @transient private[avro] lazy val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
