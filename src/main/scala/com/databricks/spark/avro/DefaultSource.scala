@@ -23,8 +23,8 @@ import java.util.zip.Deflater
 import scala.util.control.NonFatal
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
-import com.esotericsoftware.kryo.DefaultSerializer
-import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
@@ -188,8 +188,7 @@ private[avro] object DefaultSource {
 
   val AvroSchema = "avroSchema"
 
-  @DefaultSerializer(classOf[KryoJavaSerializer])
-  class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
+  class SerializableConfiguration(@transient var value: Configuration) extends Serializable with KryoSerializable {
     @transient private[avro] lazy val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
@@ -213,6 +212,17 @@ private[avro] object DefaultSource {
           log.error("Exception encountered", e)
           throw new IOException(e)
       }
+    }
+
+    def write(kryo: Kryo, out: Output): Unit = {
+      val dos = new DataOutputStream(out)
+      value.write(dos)
+      dos.flush()
+    }
+
+    def read(kryo: Kryo, in: Input): Unit = {
+      value = new Configuration(false)
+      value.readFields(new DataInputStream(in))
     }
   }
 }
