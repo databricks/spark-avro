@@ -156,12 +156,20 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       ) {
         Iterator.empty
       } else {
-        val reader = {
+        val (reader, schema) = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
-          DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
+          val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse)
+          val datumReader = avroSchema match {
+            case Some(schema) => new GenericDatumReader[GenericRecord](schema)
+            case _ => new GenericDatumReader[GenericRecord]()
+          }
+          (DataFileReader.openReader(in, datumReader), avroSchema)
         }
 
-        val rowConverter = SchemaConverters.createConverterToSQL(reader.getSchema, requiredSchema)
+        val rowConverter = SchemaConverters.createConverterToSQL(
+          schema.getOrElse(reader.getSchema),
+          requiredSchema
+        )
 
 
         new Iterator[InternalRow] {

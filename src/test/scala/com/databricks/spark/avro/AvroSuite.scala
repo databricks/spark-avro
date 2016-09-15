@@ -415,6 +415,25 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(result.sameElements(expected))
   }
 
+  test("support user provided avro schema with defaults for missing fields") {
+    val avroSchema =
+      """
+        |{
+        |  "type" : "record",
+        |  "name" : "test_schema",
+        |  "fields" : [{
+        |    "name"    : "missingField",
+        |    "type"    : "string",
+        |    "default" : "foo"
+        |  }]
+        |}
+      """.stripMargin
+    val result = spark.read.option(DefaultSource.AvroSchema, avroSchema)
+      .avro(testFile).select("missingField").head(1)
+    val expected = Array(Row("foo"))
+    assert(result.sameElements(expected))
+  }
+
   test("reading from invalid path throws exception") {
 
     // Directory given has no avro files
