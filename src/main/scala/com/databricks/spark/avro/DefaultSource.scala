@@ -200,7 +200,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
               false
             } else {
               val r = reader.hasNext
-              if (!r && !completed) {
+              if (!r) {
                 reader.close()
                 completed = true
               }
