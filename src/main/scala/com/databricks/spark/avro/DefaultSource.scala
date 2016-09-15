@@ -196,12 +196,16 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           private[this] var completed = false
 
           override def hasNext: Boolean = {
-            val r = reader.hasNext
-            if (!r && !completed) {
-              reader.close()
-              completed = true
+            if (completed) {
+              false
+            } else {
+              val r = reader.hasNext
+              if (!r && !completed) {
+                reader.close()
+                completed = true
+              }
+              r
             }
-            r
           }
 
           override def next(): InternalRow = {
