@@ -22,6 +22,8 @@ import java.nio.file.Files
 import java.sql.Timestamp
 import java.util.UUID
 
+import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
+
 import scala.collection.JavaConversions._
 
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
@@ -134,29 +136,41 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("Incorrect Union Type") {
+  test("Complex Union Type") {
     TestUtils.withTempDir { dir =>
-      val BadUnionType = Schema.createUnion(
-        List(Schema.create(Type.INT), Schema.create(Type.STRING)))
-      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
-      val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
-      val fields = Seq(new Field("field1", BadUnionType, "doc", null),
-        new Field("fixed", fixedUnionType, "doc", null),
-        new Field("bytes", Schema.create(Type.BYTES), "doc", null))
+      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 4)
+      val enumSchema = Schema.createEnum("enum_name", "doc", "namespace", List("e1", "e2"))
+      val complexUnionType = Schema.createUnion(
+        List(Schema.create(Type.INT), Schema.create(Type.STRING), fixedSchema, enumSchema))
+      val fields = Seq(
+        new Field("field1", complexUnionType, "doc", null),
+        new Field("field2", complexUnionType, "doc", null),
+        new Field("field3", complexUnionType, "doc", null),
+        new Field("field4", complexUnionType, "doc", null)
+      )
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
       val datumWriter = new GenericDatumWriter[GenericRecord](schema)
       val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
       dataFileWriter.create(schema, new File(s"$dir.avro"))
       val avroRec = new GenericData.Record(schema)
-      avroRec.put("field1", "Hope that was not load bearing")
-      avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
+      val field1 = 1234
+      val field2 = "Hope that was not load bearing"
+      val field3 = Array[Byte](1, 2, 3, 4)
+      val field4 = "e2"
+      avroRec.put("field1", field1)
+      avroRec.put("field2", field2)
+      avroRec.put("field3", new Fixed(fixedSchema, field3))
+      avroRec.put("field4", new EnumSymbol(enumSchema, field4))
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[IncompatibleSchemaException] {
-        spark.read.avro(s"$dir.avro")
-      }
+
+      val df = spark.read.avro(s"$dir.avro")
+      assertResult(field1)(df.select("field1.member0").first().get(0))
+      assertResult(field2)(df.select("field2.member1").first().get(0))
+      assertResult(field3)(df.select("field3.member2").first().get(0))
+      assertResult(field4)(df.select("field4.member3").first().get(0))
     }
   }
 

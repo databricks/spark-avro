@@ -90,8 +90,17 @@ object SchemaConverters {
             SchemaType(LongType, nullable = false)
           case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
             SchemaType(DoubleType, nullable = false)
-          case other => throw new IncompatibleSchemaException(
-            s"This mix of union types is not supported (see README): $other")
+          case _ =>
+            // Convert complex unions to struct types where field names are member0, member1, etc.
+            // This is consistent with the behavior when reading Parquet files.
+            val fields = avroSchema.getTypes.zipWithIndex map {
+              case (s, i) =>
+                val schemaType = toSqlType(s)
+                // All fields are nullable because only one of them is set at a time
+                StructField(s"member$i", schemaType.dataType, nullable = true)
+            }
+
+            SchemaType(StructType(fields), nullable = false)
         }
 
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")
@@ -264,12 +273,17 @@ object SchemaConverters {
                   case f: java.lang.Float => new java.lang.Double(f.doubleValue())
                 }
               }
-            case other => throw new IncompatibleSchemaException(
-              s"Cannot convert Avro schema to catalyst type because schema at path " +
-                s"${path.mkString(".")} is not compatible (avroType = $other, sqlType = $sqlType)" +
-                s" or this mix of union types is not supported (see README):\n" +
-                s"Source Avro schema: $sourceAvroSchema.\n" +
-                s"Target Catalyst type: $targetSqlType")
+            case _ =>
+              val fieldConverters = avroSchema.getTypes
+                .map(t => createConverter(t, toSqlType(t).dataType, path :+ t.getName))
+              (item: AnyRef) => if (item == null) {
+                null
+              } else {
+                val i = GenericData.get().resolveUnion(avroSchema, item)
+                val converted = new Array[Any](fieldConverters.size)
+                converted(i) = fieldConverters(i)(item)
+                new GenericRow(converted)
+              }
           }
         case (left, right) =>
           throw new IncompatibleSchemaException(
