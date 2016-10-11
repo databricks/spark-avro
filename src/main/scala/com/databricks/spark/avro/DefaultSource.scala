@@ -100,6 +100,11 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
 
   override def shortName(): String = "avro"
 
+  override def isSplitable(
+      sparkSession: SparkSession,
+      options: Map[String, String],
+      path: Path): Boolean = true
+
   override def prepareWrite(
       spark: SparkSession,
       job: Job,
@@ -186,6 +191,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           }
         }
 
+        reader.sync(file.start)
+        val stop = file.start + file.length
+
         val rowConverter = SchemaConverters.createConverterToSQL(reader.getSchema, requiredSchema)
 
 
@@ -199,7 +207,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
             if (completed) {
               false
             } else {
-              val r = reader.hasNext
+              val r = reader.hasNext && !reader.pastSync(stop)
               if (!r) {
                 reader.close()
                 completed = true
@@ -209,6 +217,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           }
 
           override def next(): InternalRow = {
+            if (reader.pastSync(stop)) {
+              throw new NoSuchElementException("next on empty iterator")
+            }
             val record = reader.next()
             val safeDataRow = rowConverter(record).asInstanceOf[GenericRow]
 

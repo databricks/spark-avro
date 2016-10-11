@@ -43,7 +43,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    spark = SparkSession.builder().master("local[2]").appName("AvroSuite").getOrCreate()
+    spark = SparkSession.builder().master("local[2]").appName("AvroSuite").config("spark.sql.files.maxPartitionBytes", 1024).getOrCreate()
   }
 
   override protected def afterAll(): Unit = {
@@ -543,5 +543,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     val withEmptyColumn = spark.read.schema(schema).avro(testFile).collect()
 
     assert(withEmptyColumn.forall(_ == Row(null: String, Row(null: String, null: String))))
+  }
+
+  test("read avro file partitioned") {
+    TestUtils.withTempDir { dir =>
+      val sparkSession = spark
+      import sparkSession.implicits._
+      val df = (0 to 1024 * 3).toDS.map(i => s"record${i}").toDF("records")
+      val outputDir = s"$dir/${UUID.randomUUID}"
+      df.write.avro(outputDir)
+      val input = spark.read.avro(outputDir)
+      assert(input.collect.toSet.size === 1024 * 3 + 1)
+    }
   }
 }
