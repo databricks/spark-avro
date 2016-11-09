@@ -16,7 +16,6 @@
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
-import java.util.HashMap
 
 import scala.collection.JavaConversions._
 
@@ -228,7 +227,7 @@ object SchemaConverters {
             if (item == null) {
               null
             } else {
-              item.asInstanceOf[HashMap[AnyRef, AnyRef]].map { x =>
+              item.asInstanceOf[java.util.Map[AnyRef, AnyRef]].map { x =>
                 if (x._2 == null && !allowsNull) {
                   throw new RuntimeException(s"Map value at path ${path.mkString(".")} is not " +
                     "allowed to be null")
