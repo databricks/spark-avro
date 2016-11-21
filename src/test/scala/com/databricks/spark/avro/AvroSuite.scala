@@ -554,6 +554,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       df.write.avro(outputDir)
       val input = spark.read.avro(outputDir)
       assert(input.collect.toSet.size === 1024 * 3 + 1)
+      assert(input.rdd.partitions.size > 2)
     }
   }
 }
