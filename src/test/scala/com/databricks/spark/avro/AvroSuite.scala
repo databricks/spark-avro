@@ -43,7 +43,11 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    spark = SparkSession.builder().master("local[2]").appName("AvroSuite").config("spark.sql.files.maxPartitionBytes", 1024).getOrCreate()
+    spark = SparkSession.builder()
+      .master("local[2]")
+      .appName("AvroSuite")
+      .config("spark.sql.files.maxPartitionBytes", 1024)
+      .getOrCreate()
   }
 
   override protected def afterAll(): Unit = {
