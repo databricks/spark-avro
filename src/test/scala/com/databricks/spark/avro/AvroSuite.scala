@@ -115,6 +115,88 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("union(int, long) is read as long") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(List(Schema.create(Type.INT), Schema.create(Type.LONG)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toLong)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", 2)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", LongType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1L), Row(2L)))
+    }
+  }
+
+  test("union(float, double) is read as double") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toFloat)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", 2.toDouble)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", DoubleType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1.toDouble), Row(2.toDouble)))
+    }
+  }
+
+  test("union(float, double, null) is read as nullable double") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(
+          List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE), Schema.create(Type.NULL)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toFloat)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", null)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", DoubleType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1.toDouble), Row(null)))
+    }
+  }
+
   test("Union of a single type") {
     TestUtils.withTempDir { dir =>
       val UnionOfOne = Schema.createUnion(List(Schema.create(Type.INT)))
