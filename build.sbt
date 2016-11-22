@@ -45,7 +45,7 @@ libraryDependencies ++= Seq(
 // Display full-length stacktraces from ScalaTest:
 testOptions in Test += Tests.Argument("-oF")
 
-ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := {
+coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
   else true
 }
