@@ -85,7 +85,7 @@ disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can a
 
 ## Supported types for Avro -> Spark SQL conversion
 
-This library supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
+This library supports reading all Avro types. It uses the following mapping from Avro types to Spark SQL types:
 
 | Avro type | Spark SQL type |
 | --------- |----------------|
@@ -101,12 +101,15 @@ This library supports reading all Avro types, with the exception of complex `uni
 | array     | ArrayType      |
 | map       | MapType        |
 | fixed     | BinaryType     |
+| union     | See below      |
 
 In addition to the types listed above, it supports reading of three types of `union` types:
 
 1. `union(int, long)`
 2. `union(float, double)`
-3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
+3. `union(something, null)`, where `something` is any supported Avro type. This will be mapped to the same Spark SQL type as that of `something`, with `nullable` set to `true`.
+
+All other `union` types are considered complex. They will be mapped to `StructType` where field names are `member0`, `member1`, etc., in accordance with members of the `union`. This is consistent with the behavior when reading Parquet files.
 
 At the moment, it ignores docs, aliases and other properties present in the Avro file.
 
