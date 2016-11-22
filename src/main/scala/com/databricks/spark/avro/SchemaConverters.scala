@@ -92,8 +92,8 @@ object SchemaConverters {
             SchemaType(DoubleType, nullable = false)
           case _ =>
             // Convert complex unions to struct types where field names are member0, member1, etc.
-            // This is consistent with the behavior when reading Parquet files.
-            val fields = avroSchema.getTypes.zipWithIndex map {
+            // This is consistent with the behavior when converting between Avro and Parquet.
+            val fields = avroSchema.getTypes.zipWithIndex.map {
               case (s, i) =>
                 val schemaType = toSqlType(s)
                 // All fields are nullable because only one of them is set at a time
@@ -276,7 +276,7 @@ object SchemaConverters {
             case other =>
               sqlType match {
                 case t: StructType if t.fields.length == avroSchema.getTypes.size =>
-                  val fieldConverters = t.fields zip avroSchema.getTypes map {
+                  val fieldConverters = t.fields.zip(avroSchema.getTypes).map {
                     case (field, schema) =>
                       createConverter(schema, field.dataType, path :+ field.name)
                   }

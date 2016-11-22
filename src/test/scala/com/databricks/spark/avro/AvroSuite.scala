@@ -22,14 +22,13 @@ import java.nio.file.Files
 import java.sql.Timestamp
 import java.util.UUID
 
-import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
-
 import scala.collection.JavaConversions._
 
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
+import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.commons.io.FileUtils
 

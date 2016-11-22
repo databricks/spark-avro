@@ -109,7 +109,7 @@ In addition to the types listed above, it supports reading `union` types. The fo
 2. `union(float, double)` will be mapped to `DoubleType`.
 3. `union(something, null)`, where `something` is any supported Avro type. This will be mapped to the same Spark SQL type as that of `something`, with `nullable` set to `true`.
 
-All other `union` types are considered complex. They will be mapped to `StructType` where field names are `member0`, `member1`, etc., in accordance with members of the `union`. This is consistent with the behavior when reading Parquet files.
+All other `union` types are considered complex. They will be mapped to `StructType` where field names are `member0`, `member1`, etc., in accordance with members of the `union`. This is consistent with the behavior when converting between Avro and Parquet.
 
 At the moment, it ignores docs, aliases and other properties present in the Avro file.
 
