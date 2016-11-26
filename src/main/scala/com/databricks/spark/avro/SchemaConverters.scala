@@ -17,7 +17,7 @@ package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
@@ -54,7 +54,7 @@ object SchemaConverters {
       case ENUM => SchemaType(StringType, nullable = false)
 
       case RECORD =>
-        val fields = avroSchema.getFields.map { f =>
+        val fields = avroSchema.getFields.asScala.map { f =>
           val schemaType = toSqlType(f.schema())
           StructField(f.name, schemaType.dataType, schemaType.nullable)
         }
@@ -74,15 +74,15 @@ object SchemaConverters {
           nullable = false)
 
       case UNION =>
-        if (avroSchema.getTypes.exists(_.getType == NULL)) {
+        if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
           // In case of a union with null, eliminate it and make a recursive call
-          val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
+          val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.get(0)).copy(nullable = true)
+            toSqlType(remainingUnionTypes.head).copy(nullable = true)
           } else {
-            toSqlType(Schema.createUnion(remainingUnionTypes)).copy(nullable = true)
+            toSqlType(Schema.createUnion(remainingUnionTypes.asJava)).copy(nullable = true)
           }
-        } else avroSchema.getTypes.map(_.getType) match {
+        } else avroSchema.getTypes.asScala.map(_.getType) match {
           case Seq(t1) =>
             toSqlType(avroSchema.getTypes.get(0))
           case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
@@ -92,7 +92,7 @@ object SchemaConverters {
           case _ =>
             // Convert complex unions to struct types where field names are member0, member1, etc.
             // This is consistent with the behavior when converting between Avro and Parquet.
-            val fields = avroSchema.getTypes.zipWithIndex.map {
+            val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
               case (s, i) =>
                 val schemaType = toSqlType(s)
                 // All fields are nullable because only one of them is set at a time
@@ -219,7 +219,7 @@ object SchemaConverters {
             } else {
               val array = item.asInstanceOf[GenericData.Array[AnyRef]]
 
-              array.map { element =>
+              array.asScala.map { element =>
                 if (element == null && !allowsNull) {
                   throw new RuntimeException(s"Array value at path ${path.mkString(".")} is not " +
                     "allowed to be null")
@@ -236,7 +236,7 @@ object SchemaConverters {
             if (item == null) {
               null
             } else {
-              item.asInstanceOf[java.util.Map[AnyRef, AnyRef]].map { x =>
+              item.asInstanceOf[java.util.Map[AnyRef, AnyRef]].asScala.map { x =>
                 if (x._2 == null && !allowsNull) {
                   throw new RuntimeException(s"Map value at path ${path.mkString(".")} is not " +
                     "allowed to be null")
@@ -247,14 +247,14 @@ object SchemaConverters {
             }
           }
         case (sqlType, UNION) =>
-          if (avroSchema.getTypes.exists(_.getType == NULL)) {
-            val remainingUnionTypes = avroSchema.getTypes.filterNot(_.getType == NULL)
+          if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
+            val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
             if (remainingUnionTypes.size == 1) {
-              createConverter(remainingUnionTypes.get(0), sqlType, path)
+              createConverter(remainingUnionTypes.head, sqlType, path)
             } else {
-              createConverter(Schema.createUnion(remainingUnionTypes), sqlType, path)
+              createConverter(Schema.createUnion(remainingUnionTypes.asJava), sqlType, path)
             }
-          } else avroSchema.getTypes.map(_.getType) match {
+          } else avroSchema.getTypes.asScala.map(_.getType) match {
             case Seq(t1) => createConverter(avroSchema.getTypes.get(0), sqlType, path)
             case Seq(a, b) if Set(a, b) == Set(INT, LONG) && sqlType == LongType =>
               (item: AnyRef) => {
@@ -275,7 +275,7 @@ object SchemaConverters {
             case other =>
               sqlType match {
                 case t: StructType if t.fields.length == avroSchema.getTypes.size =>
-                  val fieldConverters = t.fields.zip(avroSchema.getTypes).map {
+                  val fieldConverters = t.fields.zip(avroSchema.getTypes.asScala).map {
                     case (field, schema) =>
                       createConverter(schema, field.dataType, path :+ field.name)
                   }
