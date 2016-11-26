@@ -18,6 +18,14 @@ val testHadoopVersion = settingKey[String]("The version of Hadoop to test agains
 
 testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
 
+val testAvroVersion = settingKey[String]("The version of Avro to test against.")
+
+testAvroVersion := sys.props.getOrElse("avro.testVersion", "1.7.6")
+
+val testAvroMapredVersion = settingKey[String]("The version of avro-mapred to test against.")
+
+testAvroMapredVersion := sys.props.getOrElse("avroMapred.testVersion", "1.7.7")
+
 spAppendScalaVersion := true
 
 spIncludeMaven := true
@@ -39,7 +47,9 @@ libraryDependencies ++= Seq(
 libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-client" % testHadoopVersion.value % "test",
   "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
-  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client")
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
+  "org.apache.avro" % "avro" % testAvroVersion.value % "test" exclude("org.mortbay.jetty", "servlet-api"),
+  "org.apache.avro" % "avro-mapred" % testAvroMapredVersion.value  % "test" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api")
 )
 
 // Display full-length stacktraces from ScalaTest:
