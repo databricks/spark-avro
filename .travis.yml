@@ -24,12 +24,6 @@ matrix:
       scala: 2.10.4
       env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0" TEST_AVRO_VERSION="1.8.0" TEST_AVRO_MAPRED_VERSION="1.8.0"
 script:
-  - sbt \
-        -Dhadoop.testVersion=$TEST_HADOOP_VERSION \
-        -Dspark.testVersion=$TEST_SPARK_VERSION \
-        -Davro.testVersion=$TEST_AVRO_VERSION \
-        -DavroMapred.testVersion=$TEST_AVRO_MAPRED_VERSION \
-        ++$TRAVIS_SCALA_VERSION coverage test coverageReport
-  - sbt ++$TRAVIS_SCALA_VERSION scalastyle
+  - ./dev/run-tests-travis.sh
 after_success:
   - bash <(curl -s https://codecov.io/bash)
