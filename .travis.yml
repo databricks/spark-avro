@@ -1,20 +1,29 @@
 language: scala
 sudo: false
+# Cache settings here are based on latest SBT documentation.
 cache:
   directories:
-    - $HOME/.ivy2
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt/boot/
+before_cache:
+  # Tricks to avoid unnecessary cache updates
+  - find $HOME/.ivy2 -name "ivydata-*.properties" -delete
+  - find $HOME/.sbt -name "*.lock" -delete
 matrix:
   include:
-    # Spark 2.0.0 and Scala 2.11
+    # Spark 2.0.0, Scala 2.11, and Avro 1.7.x
     - jdk: openjdk7
       scala: 2.11.7
-      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0"
-    # Spark 2.0.0 and Scala 2.10
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0" TEST_AVRO_VERSION="1.7.6" TEST_AVRO_MAPRED_VERSION="1.7.7"
+    # Spark 2.0.0, Scala 2.10, and Avro 1.7.x
     - jdk: openjdk7
       scala: 2.10.4
-      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0"
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0" TEST_AVRO_VERSION="1.7.6" TEST_AVRO_MAPRED_VERSION="1.7.7"
+    # Spark 2.0.0, Scala 2.10, and Avro 1.8.x
+    - jdk: openjdk7
+      scala: 2.10.4
+      env: TEST_HADOOP_VERSION="2.2.0" TEST_SPARK_VERSION="2.0.0" TEST_AVRO_VERSION="1.8.0" TEST_AVRO_MAPRED_VERSION="1.8.0"
 script:
-  - sbt -Dhadoop.testVersion=$TEST_HADOOP_VERSION -Dspark.testVersion=$TEST_SPARK_VERSION ++$TRAVIS_SCALA_VERSION coverage test
-  - sbt ++$TRAVIS_SCALA_VERSION scalastyle
+  - ./dev/run-tests-travis.sh
 after_success:
   - bash <(curl -s https://codecov.io/bash)

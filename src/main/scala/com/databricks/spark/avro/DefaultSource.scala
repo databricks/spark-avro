@@ -23,8 +23,8 @@ import java.util.zip.Deflater
 import scala.util.control.NonFatal
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
-import com.esotericsoftware.kryo.DefaultSerializer
-import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
 import org.slf4j.LoggerFactory
 
+import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
@@ -75,8 +76,16 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
     // User can specify an optional avro json schema.
     val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse).getOrElse {
       val in = new FsInput(sampleFile.getPath, conf)
-      val reader = DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
-      reader.getSchema
+      try {
+        val reader = DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
+        try {
+          reader.getSchema
+        } finally {
+          reader.close()
+        }
+      } finally {
+        in.close()
+      }
     }
 
     SchemaConverters.toSqlType(avroSchema).dataType match {
@@ -90,6 +99,11 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
   }
 
   override def shortName(): String = "avro"
+
+  override def isSplitable(
+      sparkSession: SparkSession,
+      options: Map[String, String],
+      path: Path): Boolean = true
 
   override def prepareWrite(
       spark: SparkSession,
@@ -144,7 +158,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       spark.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
     (file: PartitionedFile) => {
+      val log = LoggerFactory.getLogger(classOf[DefaultSource])
       val conf = broadcastedConf.value.value
+      val userProvidedSchema = options.get(AvroSchema).map(new Schema.Parser().parse)
 
       // TODO Removes this check once `FileFormat` gets a general file filtering interface method.
       // Doing input file filtering is improper because we may generate empty tasks that process no
@@ -156,29 +172,59 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       ) {
         Iterator.empty
       } else {
-        val (reader, schema) = {
+        val reader = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
-          val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse)
-          val datumReader = avroSchema match {
-            case Some(schema) => new GenericDatumReader[GenericRecord](schema)
-            case _ => new GenericDatumReader[GenericRecord]()
+          try {
+            val datumReader = userProvidedSchema match {
+              case Some(userSchema) => new GenericDatumReader[GenericRecord](userSchema)
+              case _ => new GenericDatumReader[GenericRecord]()
+            }
+            DataFileReader.openReader(in, datumReader)
+          } catch {
+            case NonFatal(e) =>
+              log.error("Exception while opening DataFileReader", e)
+              in.close()
+              throw e
           }
-          (DataFileReader.openReader(in, datumReader), avroSchema)
         }
 
-        val rowConverter = SchemaConverters.createConverterToSQL(
-          schema.getOrElse(reader.getSchema),
-          requiredSchema
-        )
+        // Ensure that the reader is closed even if the task fails or doesn't consume the entire
+        // iterator of records.
+        Option(TaskContext.get()).foreach { taskContext =>
+          taskContext.addTaskCompletionListener { _ =>
+            reader.close()
+          }
+        }
 
+        reader.sync(file.start)
+        val stop = file.start + file.length
+
+        val rowConverter = SchemaConverters.createConverterToSQL(
+          userProvidedSchema.getOrElse(reader.getSchema), requiredSchema)
 
         new Iterator[InternalRow] {
           // Used to convert `Row`s containing data columns into `InternalRow`s.
           private val encoderForDataColumns = RowEncoder(requiredSchema)
 
-          override def hasNext: Boolean = reader.hasNext
+          private[this] var completed = false
+
+          override def hasNext: Boolean = {
+            if (completed) {
+              false
+            } else {
+              val r = reader.hasNext && !reader.pastSync(stop)
+              if (!r) {
+                reader.close()
+                completed = true
+              }
+              r
+            }
+          }
 
           override def next(): InternalRow = {
+            if (reader.pastSync(stop)) {
+              throw new NoSuchElementException("next on empty iterator")
+            }
             val record = reader.next()
             val safeDataRow = rowConverter(record).asInstanceOf[GenericRow]
 
@@ -196,8 +242,8 @@ private[avro] object DefaultSource {
 
   val AvroSchema = "avroSchema"
 
-  @DefaultSerializer(classOf[KryoJavaSerializer])
-  class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
+  class SerializableConfiguration(@transient var value: Configuration)
+      extends Serializable with KryoSerializable {
     @transient private[avro] lazy val log = LoggerFactory.getLogger(getClass)
 
     private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
@@ -221,6 +267,17 @@ private[avro] object DefaultSource {
           log.error("Exception encountered", e)
           throw new IOException(e)
       }
+    }
+
+    def write(kryo: Kryo, out: Output): Unit = {
+      val dos = new DataOutputStream(out)
+      value.write(dos)
+      dos.flush()
+    }
+
+    def read(kryo: Kryo, in: Input): Unit = {
+      value = new Configuration(false)
+      value.readFields(new DataInputStream(in))
     }
   }
 }

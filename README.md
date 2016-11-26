@@ -16,7 +16,7 @@ This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
 | `1.2`         | `0.2.0`                                          |
 | `1.3`         | `1.0.0`                                          |
 | `1.4+`        | `2.0.1`                                          |
-| `2.0`         | `3.0.0`                                          |
+| `2.0`         | `3.0.1`                                          |
 
 ## Linking
 
@@ -47,7 +47,7 @@ Using Maven:
 Using SBT:
 
 ```
-libraryDependencies += "com.databricks" %% "spark-avro" % "3.0.0"
+libraryDependencies += "com.databricks" %% "spark-avro" % "3.0.1"
 ```
 
 Using Maven:
@@ -56,7 +56,7 @@ Using Maven:
 <dependency>
     <groupId>com.databricks</groupId>
     <artifactId>spark-avro_2.10</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ For example, to include it when starting the spark shell:
 
 ```
 $ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
-$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.0.0
+$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.0.1
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
@@ -85,7 +85,7 @@ disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can a
 
 ## Supported types for Avro -> Spark SQL conversion
 
-This library supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
+This library supports reading all Avro types. It uses the following mapping from Avro types to Spark SQL types:
 
 | Avro type | Spark SQL type |
 | --------- |----------------|
@@ -101,12 +101,15 @@ This library supports reading all Avro types, with the exception of complex `uni
 | array     | ArrayType      |
 | map       | MapType        |
 | fixed     | BinaryType     |
+| union     | See below      |
 
-In addition to the types listed above, it supports reading of three types of `union` types:
+In addition to the types listed above, it supports reading `union` types. The following three types are considered basic `union` types:
 
-1. `union(int, long)`
-2. `union(float, double)`
-3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
+1. `union(int, long)` will be mapped to `LongType`.
+2. `union(float, double)` will be mapped to `DoubleType`.
+3. `union(something, null)`, where `something` is any supported Avro type. This will be mapped to the same Spark SQL type as that of `something`, with `nullable` set to `true`.
+
+All other `union` types are considered complex. They will be mapped to `StructType` where field names are `member0`, `member1`, etc., in accordance with members of the `union`. This is consistent with the behavior when converting between Avro and Parquet.
 
 At the moment, it ignores docs, aliases and other properties present in the Avro file.
 

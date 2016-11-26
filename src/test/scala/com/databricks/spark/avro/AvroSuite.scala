@@ -28,6 +28,7 @@ import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
+import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.commons.io.FileUtils
 
@@ -43,7 +44,11 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    spark = SparkSession.builder().master("local[2]").appName("AvroSuite").getOrCreate()
+    spark = SparkSession.builder()
+      .master("local[2]")
+      .appName("AvroSuite")
+      .config("spark.sql.files.maxPartitionBytes", 1024)
+      .getOrCreate()
   }
 
   override protected def afterAll(): Unit = {
@@ -111,6 +116,88 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("union(int, long) is read as long") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(List(Schema.create(Type.INT), Schema.create(Type.LONG)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toLong)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", 2)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", LongType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1L), Row(2L)))
+    }
+  }
+
+  test("union(float, double) is read as double") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toFloat)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", 2.toDouble)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", DoubleType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1.toDouble), Row(2.toDouble)))
+    }
+  }
+
+  test("union(float, double, null) is read as nullable double") {
+    TestUtils.withTempDir { dir =>
+      val avroSchema: Schema = {
+        val union = Schema.createUnion(
+          List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE), Schema.create(Type.NULL)))
+        val fields = Seq(new Field("field1", union, "doc", null))
+        val schema = Schema.createRecord("name", "docs", "namespace", false)
+        schema.setFields(fields)
+        schema
+      }
+
+      val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+      val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
+      dataFileWriter.create(avroSchema, new File(s"$dir.avro"))
+      val rec1 = new GenericData.Record(avroSchema)
+      rec1.put("field1", 1.toFloat)
+      dataFileWriter.append(rec1)
+      val rec2 = new GenericData.Record(avroSchema)
+      rec2.put("field1", null)
+      dataFileWriter.append(rec2)
+      dataFileWriter.flush()
+      dataFileWriter.close()
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.schema.fields === Seq(StructField("field1", DoubleType, nullable = true)))
+      assert(df.collect().toSet == Set(Row(1.toDouble), Row(null)))
+    }
+  }
+
   test("Union of a single type") {
     TestUtils.withTempDir { dir =>
       val UnionOfOne = Schema.createUnion(List(Schema.create(Type.INT)))
@@ -134,29 +221,41 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("Incorrect Union Type") {
+  test("Complex Union Type") {
     TestUtils.withTempDir { dir =>
-      val BadUnionType = Schema.createUnion(
-        List(Schema.create(Type.INT), Schema.create(Type.STRING)))
-      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 20)
-      val fixedUnionType = Schema.createUnion(List(fixedSchema,Schema.create(Type.NULL)))
-      val fields = Seq(new Field("field1", BadUnionType, "doc", null),
-        new Field("fixed", fixedUnionType, "doc", null),
-        new Field("bytes", Schema.create(Type.BYTES), "doc", null))
+      val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 4)
+      val enumSchema = Schema.createEnum("enum_name", "doc", "namespace", List("e1", "e2"))
+      val complexUnionType = Schema.createUnion(
+        List(Schema.create(Type.INT), Schema.create(Type.STRING), fixedSchema, enumSchema))
+      val fields = Seq(
+        new Field("field1", complexUnionType, "doc", null),
+        new Field("field2", complexUnionType, "doc", null),
+        new Field("field3", complexUnionType, "doc", null),
+        new Field("field4", complexUnionType, "doc", null)
+      )
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
       val datumWriter = new GenericDatumWriter[GenericRecord](schema)
       val dataFileWriter = new DataFileWriter[GenericRecord](datumWriter)
       dataFileWriter.create(schema, new File(s"$dir.avro"))
       val avroRec = new GenericData.Record(schema)
-      avroRec.put("field1", "Hope that was not load bearing")
-      avroRec.put("bytes", ByteBuffer.wrap(Array[Byte]()))
+      val field1 = 1234
+      val field2 = "Hope that was not load bearing"
+      val field3 = Array[Byte](1, 2, 3, 4)
+      val field4 = "e2"
+      avroRec.put("field1", field1)
+      avroRec.put("field2", field2)
+      avroRec.put("field3", new Fixed(fixedSchema, field3))
+      avroRec.put("field4", new EnumSymbol(enumSchema, field4))
       dataFileWriter.append(avroRec)
       dataFileWriter.flush()
       dataFileWriter.close()
-      intercept[IncompatibleSchemaException] {
-        spark.read.avro(s"$dir.avro")
-      }
+
+      val df = spark.sqlContext.read.avro(s"$dir.avro")
+      assertResult(field1)(df.selectExpr("field1.member0").first().get(0))
+      assertResult(field2)(df.selectExpr("field2.member1").first().get(0))
+      assertResult(field3)(df.selectExpr("field3.member2").first().get(0))
+      assertResult(field4)(df.selectExpr("field4.member3").first().get(0))
     }
   }
 
@@ -429,9 +528,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         |}
       """.stripMargin
     val result = spark.read.option(DefaultSource.AvroSchema, avroSchema)
-      .avro(testFile).select("missingField").head(1)
-    val expected = Array(Row("foo"))
-    assert(result.sameElements(expected))
+      .avro(testFile).select("missingField").first
+    assert(result === Row("foo"))
   }
 
   test("reading from invalid path throws exception") {
@@ -562,5 +660,18 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     val withEmptyColumn = spark.read.schema(schema).avro(testFile).collect()
 
     assert(withEmptyColumn.forall(_ == Row(null: String, Row(null: String, null: String))))
+  }
+
+  test("read avro file partitioned") {
+    TestUtils.withTempDir { dir =>
+      val sparkSession = spark
+      import sparkSession.implicits._
+      val df = (0 to 1024 * 3).toDS.map(i => s"record${i}").toDF("records")
+      val outputDir = s"$dir/${UUID.randomUUID}"
+      df.write.avro(outputDir)
+      val input = spark.read.avro(outputDir)
+      assert(input.collect.toSet.size === 1024 * 3 + 1)
+      assert(input.rdd.partitions.size > 2)
+    }
   }
 }
