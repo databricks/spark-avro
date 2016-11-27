@@ -29,7 +29,6 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
 
@@ -54,22 +53,9 @@ private[avro] class AvroOutputWriter(
   private val recordWriter: RecordWriter[AvroKey[GenericRecord], NullWritable] =
     new AvroKeyOutputFormat[GenericRecord]() {
 
-      private def getConfigurationFromContext(context: TaskAttemptContext): Configuration = {
-        // Use reflection to get the Configuration. This is necessary because TaskAttemptContext
-        // is a class in Hadoop 1.x and an interface in Hadoop 2.x.
-        val method = context.getClass.getMethod("getConfiguration")
-        method.invoke(context).asInstanceOf[Configuration]
-      }
-
       override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
-        val uniqueWriteJobId =
-          getConfigurationFromContext(context).get("spark.sql.sources.writeJobUUID")
-        val taskAttemptId: TaskAttemptID = {
-          // Use reflection to get the TaskAttemptID. This is necessary because TaskAttemptContext
-          // is a class in Hadoop 1.x and an interface in Hadoop 2.x.
-          val method = context.getClass.getMethod("getTaskAttemptID")
-          method.invoke(context).asInstanceOf[TaskAttemptID]
-        }
+        val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
+        val taskAttemptId: TaskAttemptID = context.getTaskAttemptID
         val split = taskAttemptId.getTaskID.getId
         new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
       }
@@ -77,7 +63,7 @@ private[avro] class AvroOutputWriter(
       @throws(classOf[IOException])
       override def getAvroFileOutputStream(c: TaskAttemptContext): OutputStream = {
         val path = getDefaultWorkFile(context, ".avro")
-        path.getFileSystem(getConfigurationFromContext(context)).create(path)
+        path.getFileSystem(context.getConfiguration).create(path)
       }
 
     }.getRecordWriter(context)
