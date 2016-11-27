@@ -160,6 +160,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
     (file: PartitionedFile) => {
       val log = LoggerFactory.getLogger(classOf[DefaultSource])
       val conf = broadcastedConf.value.value
+      val userProvidedSchema = options.get(AvroSchema).map(new Schema.Parser().parse)
 
       // TODO Removes this check once `FileFormat` gets a general file filtering interface method.
       // Doing input file filtering is improper because we may generate empty tasks that process no
@@ -174,7 +175,11 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         val reader = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
           try {
-            DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
+            val datumReader = userProvidedSchema match {
+              case Some(userSchema) => new GenericDatumReader[GenericRecord](userSchema)
+              case _ => new GenericDatumReader[GenericRecord]()
+            }
+            DataFileReader.openReader(in, datumReader)
           } catch {
             case NonFatal(e) =>
               log.error("Exception while opening DataFileReader", e)
@@ -194,8 +199,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         reader.sync(file.start)
         val stop = file.start + file.length
 
-        val rowConverter = SchemaConverters.createConverterToSQL(reader.getSchema, requiredSchema)
-
+        val rowConverter = SchemaConverters.createConverterToSQL(
+          userProvidedSchema.getOrElse(reader.getSchema), requiredSchema)
 
         new Iterator[InternalRow] {
           // Used to convert `Row`s containing data columns into `InternalRow`s.
