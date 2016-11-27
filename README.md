@@ -159,7 +159,7 @@ val df = spark.read
 df.filter("doctor > 5").write.format("com.databricks.spark.avro").save("/tmp/output")
 ```
 
-You can specify a custom Avro schema:
+You can specify a custom Avro schema for use during reads or writes:
 
 ```scala
 import org.apache.avro.Schema
@@ -172,6 +172,12 @@ spark
   .format("com.databricks.spark.avro")
   .option("avroSchema", schema.toString)
   .load("src/test/resources/episodes.avro").show()
+
+df
+  .write
+  .format("com.databricks.spark.avro")
+  .option("avroSchema", schema.toString)
+  .save("/tmp/output")
 ```
 
 You can also specify Avro compression options:
