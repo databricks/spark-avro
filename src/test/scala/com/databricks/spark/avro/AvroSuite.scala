@@ -509,7 +509,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         |  }]
         |}
       """.stripMargin
-    val strings = spark.createDataFrame(Seq(Tuple1("Hello"), Tuple1("World")))
+    val strings = spark.createDataFrame(Seq(("Hello", "World")))
+    assert(strings.schema.fields.length == 2)
     TestUtils.withTempDir { tempDir =>
       val savePath = s"$tempDir/save"
       strings.write.option(DefaultSource.AvroSchema, avroSchema).avro(savePath)
