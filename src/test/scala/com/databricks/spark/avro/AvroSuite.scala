@@ -514,8 +514,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     TestUtils.withTempDir { tempDir =>
       val savePath = s"$tempDir/save"
       strings.write.option(DefaultSource.AvroSchema, avroSchema).avro(savePath)
-      val readSchema = spark.read.avro(savePath).schema
-      assert(readSchema.fields === Seq(StructField("my_custom_field_name", StringType)))
+      val readDF = spark.read.avro(savePath)
+      assert(readDF.schema.fields === Seq(StructField("my_custom_field_name", StringType)))
+      assert(readDF.collect() === Seq(Row("Hello")))
     }
   }
 
