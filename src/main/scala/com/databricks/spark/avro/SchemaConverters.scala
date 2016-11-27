@@ -217,9 +217,7 @@ object SchemaConverters {
             if (item == null) {
               null
             } else {
-              val array = item.asInstanceOf[GenericData.Array[AnyRef]]
-
-              array.asScala.map { element =>
+              item.asInstanceOf[java.lang.Iterable[AnyRef]].asScala.map { element =>
                 if (element == null && !allowsNull) {
                   throw new RuntimeException(s"Array value at path ${path.mkString(".")} is not " +
                     "allowed to be null")
