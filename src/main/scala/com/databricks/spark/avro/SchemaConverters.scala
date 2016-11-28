@@ -137,7 +137,9 @@ object SchemaConverters {
    * @param targetSqlType Target catalyst sql type after the conversion.
    * @return returns a converter function to convert row in avro format to GenericRow of catalyst.
    */
-  def createConverterToSQL(sourceAvroSchema: Schema, targetSqlType: DataType): AnyRef => AnyRef = {
+  private[avro] def createConverterToSQL(
+    sourceAvroSchema: Schema,
+    targetSqlType: DataType): AnyRef => AnyRef = {
 
     def createConverter(avroSchema: Schema,
         sqlType: DataType, path: List[String]): AnyRef => AnyRef = {
