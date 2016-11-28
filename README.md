@@ -7,16 +7,17 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for Spark 1.4+ and 2.0.
+This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
+documentation on earlier versions of this library, see the links below.
 
 This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
 | ------------- | ------------------------------------------------ |
 | `1.2`         | `0.2.0`                                          |
-| `1.3`         | `1.0.0`                                          |
-| `1.4+`        | `2.0.1`                                          |
-| `2.0`         | `3.1.0`                                          |
+| `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
+| `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
+| `2.0`         | `3.1.0` (this version)                           |
 
 ## Linking
 
@@ -24,33 +25,13 @@ This library is cross-published for Scala 2.11, so 2.11 users should replace 2.1
 
 You can link against this library in your program at the following coordinates:
 
-### For Spark 1.4+
-
-Using SBT:
-
-```
-libraryDependencies += "com.databricks" %% "spark-avro" % "2.0.1"
-```
-
-Using Maven:
-
-```xml
-<dependency>
-    <groupId>com.databricks</groupId>
-    <artifactId>spark-avro_2.10</artifactId>
-    <version>2.0.1</version>
-</dependency>
-```
-
-### For Spark 2.0
-
-Using SBT:
+**Using SBT:**
 
 ```
 libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
 ```
 
-Using Maven:
+**Using Maven:**
 
 ```xml
 <dependency>
@@ -66,7 +47,6 @@ This library can also be added to Spark jobs launched through `spark-shell` or `
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
 $ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.1.0
 ```
 
