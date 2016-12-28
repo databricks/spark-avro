@@ -388,4 +388,16 @@ class AvroSuite extends FunSuite {
       assert(newDf.count == 8)
     }
   }
+
+  // Classes have to be defined outside of the test
+  case class NestedBottom(id: Int, data: String)
+  case class NestedMiddle(id: Int, data: NestedBottom)
+  case class NestedTop(id: Int, data: NestedMiddle)
+
+  test("saving avro that has nested records with the same name") {
+    TestUtils.withTempDir { tempDir =>
+      val df = TestSQLContext.createDataFrame(List(NestedTop(1, NestedMiddle(2, NestedBottom(3, "1")))))
+      df.write.avro(s"$tempDir/duplicate_names/")
+    }
+  }
 }
