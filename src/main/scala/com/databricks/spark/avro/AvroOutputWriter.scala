@@ -54,7 +54,7 @@ private[avro] class AvroOutputWriter(
     new AvroKeyOutputFormat[GenericRecord]() {
 
       override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
-        new Path(path) //, f"part-r-$split%05d-$uniqueWriteJobId$extension")
+        new Path(path)
       }
 
       @throws(classOf[IOException])
