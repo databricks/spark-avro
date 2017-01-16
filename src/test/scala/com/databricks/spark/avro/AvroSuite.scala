@@ -23,17 +23,19 @@ import java.sql.Timestamp
 import java.util.UUID
 
 import scala.collection.JavaConversions._
-
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
+import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
-import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord, GenericRecordBuilder}
 import org.apache.commons.io.FileUtils
-
+import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
@@ -674,4 +676,209 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(input.rdd.partitions.size > 2)
     }
   }
+
+  test("generic record converts to row and back") {
+    val nested =
+      SchemaBuilder.record("simple_record").fields()
+        .name("nested1").`type`("int").withDefault(0)
+        .name("nested2").`type`("string").withDefault("string").endRecord()
+
+    val schema = SchemaBuilder.record("record").fields()
+      .name("boolean").`type`("boolean").withDefault(false)
+      .name("int").`type`("int").withDefault(0)
+      .name("long").`type`("long").withDefault(0L)
+      .name("float").`type`("float").withDefault(0.0F)
+      .name("double").`type`("double").withDefault(0.0)
+      .name("string").`type`("string").withDefault("string")
+      .name("bytes").`type`("bytes").withDefault(java.nio.ByteBuffer.wrap("bytes".getBytes))
+      .name("nested").`type`(nested).withDefault(new GenericRecordBuilder(nested).build)
+      .name("enum").`type`(
+      SchemaBuilder.enumeration("simple_enums")
+        .symbols("SPADES", "HEARTS", "CLUBS", "DIAMONDS"))
+      .withDefault("SPADES")
+      .name("int_array").`type`(
+      SchemaBuilder.array().items().`type`("int"))
+      .withDefault(java.util.Arrays.asList(1, 2, 3))
+      .name("string_array").`type`(
+      SchemaBuilder.array().items().`type`("string"))
+      .withDefault(java.util.Arrays.asList("a", "b", "c"))
+      .name("record_array").`type`(
+      SchemaBuilder.array.items.`type`(nested))
+      .withDefault(java.util.Arrays.asList(
+        new GenericRecordBuilder(nested).build,
+        new GenericRecordBuilder(nested).build))
+      .name("enum_array").`type`(
+      SchemaBuilder.array.items.`type`(
+        SchemaBuilder.enumeration("simple_enums")
+          .symbols("SPADES", "HEARTS", "CLUBS", "DIAMONDS")))
+      .withDefault(java.util.Arrays.asList("SPADES", "HEARTS", "SPADES"))
+      .name("fixed_array").`type`(
+      SchemaBuilder.array.items().`type`(
+        SchemaBuilder.fixed("simple_fixed").size(3)))
+      .withDefault(java.util.Arrays.asList("foo", "bar", "baz"))
+      .name("fixed").`type`(SchemaBuilder.fixed("simple_fixed").size(16))
+      .withDefault("string_length_16")
+      .endRecord()
+
+    val encoder = AvroEncoder.of[GenericData.Record](schema)
+    val expressionEncoder = encoder.asInstanceOf[ExpressionEncoder[GenericData.Record]]
+    val record = new GenericRecordBuilder(schema).build
+    val row = expressionEncoder.toRow(record)
+    val recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(record == recordFromRow)
+  }
+
+  test("specific record converts to row and back") {
+    val schemaPath = "src/test/resources/specific.avsc"
+    val schema = new Schema.Parser().parse(new File(schemaPath))
+    val record = TestRecord.newBuilder().build()
+
+    val classEncoder = AvroEncoder.of[TestRecord](classOf[TestRecord])
+    val classExpressionEncoder = classEncoder.asInstanceOf[ExpressionEncoder[TestRecord]]
+    val classRow = classExpressionEncoder.toRow(record)
+    val classRecordFromRow = classExpressionEncoder.resolveAndBind().fromRow(classRow)
+
+    assert(record == classRecordFromRow)
+
+    val schemaEncoder = AvroEncoder.of[TestRecord](schema)
+    val schemaExpressionEncoder = schemaEncoder.asInstanceOf[ExpressionEncoder[TestRecord]]
+    val schemaRow = schemaExpressionEncoder.toRow(record)
+    val schemaRecordFromRow = schemaExpressionEncoder.resolveAndBind().fromRow(schemaRow)
+
+    assert(record == schemaRecordFromRow)
+  }
+
+  test("encoder resolves union types to rows") {
+    val schema = SchemaBuilder.record("record").fields()
+      .name("int_null_union").`type`(
+      SchemaBuilder.unionOf.`type`("null").and.`type`("int").endUnion)
+      .withDefault(null)
+      .name("string_null_union").`type`(
+      SchemaBuilder.unionOf.`type`("null").and.`type`("string").endUnion)
+      .withDefault(null)
+      .name("int_long_union").`type`(
+      SchemaBuilder.unionOf.`type`("int").and.`type`("long").endUnion)
+      .withDefault(0)
+      .name("float_double_union").`type`(
+      SchemaBuilder.unionOf.`type`("float").and.`type`("double").endUnion)
+      .withDefault(0.0)
+      .endRecord
+
+    val encoder = AvroEncoder.of[GenericData.Record](schema)
+    val expressionEncoder = encoder.asInstanceOf[ExpressionEncoder[GenericData.Record]]
+    val record = new GenericRecordBuilder(schema).build
+    val row = expressionEncoder.toRow(record)
+    val recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(record.get(0) == recordFromRow.get(0))
+    assert(record.get(1) == recordFromRow.get(1))
+    assert(record.get(2) == recordFromRow.get(2))
+    assert(record.get(3) == recordFromRow.get(3))
+
+    record.put(0, 0)
+    record.put(1, "value")
+
+    val updatedRow = expressionEncoder.toRow(record)
+    val updatedRecordFromRow = expressionEncoder.resolveAndBind().fromRow(updatedRow)
+
+    assert(record.get(0) == updatedRecordFromRow.get(0))
+    assert(record.get(1) == updatedRecordFromRow.get(1))
+  }
+
+  test("encoder resolves map types to rows") {
+    val intMap = new java.util.HashMap[java.lang.String, java.lang.Integer]
+    intMap.put("foo", 1)
+    intMap.put("bar", 2)
+    intMap.put("baz", 3)
+
+    val stringMap = new java.util.HashMap[java.lang.String, java.lang.String]
+    stringMap.put("foo", "a")
+    stringMap.put("bar", "b")
+    stringMap.put("baz", "c")
+
+    val schema = SchemaBuilder.record("record").fields()
+      .name("int_map").`type`(
+      SchemaBuilder.map.values.`type`("int")).withDefault(intMap)
+      .name("string_map").`type`(
+      SchemaBuilder.map.values.`type`("string")).withDefault(stringMap)
+      .endRecord()
+
+    val encoder = AvroEncoder.of[GenericData.Record](schema)
+    val expressionEncoder = encoder.asInstanceOf[ExpressionEncoder[GenericData.Record]]
+    val record = new GenericRecordBuilder(schema).build
+    val row = expressionEncoder.toRow(record)
+    val recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    val rowIntMap = recordFromRow.get(0)
+    assert(intMap == rowIntMap)
+
+    val rowStringMap = recordFromRow.get(1)
+    assert(stringMap == rowStringMap)
+  }
+
+  test("encoder resolves complex unions to rows") {
+    val nested =
+      SchemaBuilder.record("simple_record").fields()
+        .name("nested1").`type`("int").withDefault(0)
+        .name("nested2").`type`("string").withDefault("foo").endRecord()
+    val schema = SchemaBuilder.record("record").fields()
+      .name("int_float_string_record").`type`(
+      SchemaBuilder.unionOf()
+        .`type`("null").and()
+        .`type`("int").and()
+        .`type`("float").and()
+        .`type`("string").and()
+        .`type`(nested).endUnion()
+    ).withDefault(null).endRecord()
+
+    val encoder = AvroEncoder.of[GenericData.Record](schema)
+    val expressionEncoder = encoder.asInstanceOf[ExpressionEncoder[GenericData.Record]]
+    val record = new GenericRecordBuilder(schema).build
+    var row = expressionEncoder.toRow(record)
+    var recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(row.getStruct(0, 4).get(0, IntegerType) == null)
+    assert(row.getStruct(0, 4).get(1, FloatType) == null)
+    assert(row.getStruct(0, 4).get(2, StringType) == null)
+    assert(row.getStruct(0, 4).getStruct(3, 2) == null)
+    assert(record == recordFromRow)
+
+    record.put(0, 1)
+    row = expressionEncoder.toRow(record)
+    recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(row.getStruct(0, 4).get(1, FloatType) == null)
+    assert(row.getStruct(0, 4).get(2, StringType) == null)
+    assert(row.getStruct(0, 4).getStruct(3, 2) == null)
+    assert(record == recordFromRow)
+
+    record.put(0, 1F)
+    row = expressionEncoder.toRow(record)
+    recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(row.getStruct(0, 4).get(0, IntegerType) == null)
+    assert(row.getStruct(0, 4).get(2, StringType) == null)
+    assert(row.getStruct(0, 4).getStruct(3, 2) == null)
+    assert(record == recordFromRow)
+
+    record.put(0, "bar")
+    row = expressionEncoder.toRow(record)
+    recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(row.getStruct(0, 4).get(0, IntegerType) == null)
+    assert(row.getStruct(0, 4).get(1, FloatType) == null)
+    assert(row.getStruct(0, 4).getStruct(3, 2) == null)
+    assert(record == recordFromRow)
+
+    record.put(0, new GenericRecordBuilder(nested).build())
+    row = expressionEncoder.toRow(record)
+    recordFromRow = expressionEncoder.resolveAndBind().fromRow(row)
+
+    assert(row.getStruct(0, 4).get(0, IntegerType) == null)
+    assert(row.getStruct(0, 4).get(1, FloatType) == null)
+    assert(row.getStruct(0, 4).get(2, StringType) == null)
+    assert(record == recordFromRow)
+  }
+
 }
