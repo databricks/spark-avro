@@ -1,0 +1,40 @@
+{
+  "namespace": "com.databricks.spark.avro",
+  "type": "record",
+  "name": "TestRecord",
+  "fields": [
+    {"name": "boolean", "type": "boolean", "default": true},
+    {"name": "int", "type": "int", "default": 0},
+    {"name": "long", "type": "long", "default": 0},
+    {"name": "float", "type": "float", "default": 0.0},
+    {"name": "double", "type": "double", "default": 0.0},
+    {"name": "string", "type": "string", "default": "value"},
+    {"name": "bytes", "type": "bytes", "default": "\u00ff"},
+    {"name": "nested", "type": {
+      "type": "record", "name": "SimpleRecord", "fields": [
+        {"name": "nested1", "type": "int", "default": 0},
+        {"name": "nested2", "type": "string", "default": "string"}]},
+      "default": {"nested1": 0, "nested2": "string"}},
+    {"name": "enum", "type": {
+      "name": "SimpleEnums", "type": "enum", "symbols": ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"]},
+      "default": "SPADES"},
+    {"name": "fixed", "type": {
+      "name": "SimpleFixed", "type": "fixed", "size": 16},
+      "default": "string_length_16"},
+    {"name": "intArray",
+      "type": {"type": "array", "items": "int"},
+      "default": [1, 2, 3]},
+    {"name": "stringArray",
+      "type": {"type": "array", "items": "string"},
+      "default": ["a", "b", "c"]},
+    {"name": "recordArray",
+      "type": {"type": "array", "items": "com.databricks.spark.avro.SimpleRecord"},
+      "default": [{"nested1": 0, "nested2": "value"}, {"nested1": 0, "nested2": "value"}]},
+    {"name": "enumArray",
+      "type": {"type": "array", "items": "com.databricks.spark.avro.SimpleEnums"},
+      "default": ["SPADES", "HEARTS", "SPADES"]},
+    {"name": "fixedArray",
+      "type": {"type": "array", "items": "com.databricks.spark.avro.SimpleFixed"},
+      "default": ["foo", "bar", "baz"]}
+  ]
+}
