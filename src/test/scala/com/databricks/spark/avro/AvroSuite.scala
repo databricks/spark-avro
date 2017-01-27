@@ -19,7 +19,7 @@ package com.databricks.spark.avro
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.file.Files
-import java.sql.Timestamp
+import java.sql.{Date, Timestamp}
 import java.util.UUID
 
 import scala.collection.JavaConversions._
@@ -28,9 +28,10 @@ import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -301,18 +302,18 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     TestUtils.withTempDir { dir =>
       val schema = StructType(Seq(
         StructField("float", FloatType, true),
-        StructField("short", ShortType, true),
-        StructField("byte", ByteType, true),
         StructField("date", DateType, true)
       ))
-      val rdd = sqlContext.sparkContext.parallelize(Seq(
-        Row(1f, 1.toShort, 1.toByte, null),
-        Row(2f, 2.toShort, 2.toByte, new Date(1460120535000L)),
-        Row(3f, 3.toShort, 3.toByte, new Date(1460120535000L))
+      val rdd = spark.sparkContext.parallelize(Seq(
+        Row(1f, null),
+        Row(2f, new Date(1451980800000L)),
+        Row(3f, new Date(1460098800000L))
       ))
-      val df = sqlContext.createDataFrame(rdd, schema)
+      val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
-      assert(sqlContext.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).select("date").collect().map(_(0)).toSet ==
+        Array(null, 1451980800000L, 1460098800000L).toSet)
     }
   }
 

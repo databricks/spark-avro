@@ -21,9 +21,10 @@ import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConversions._
 import scala.util.Random
+
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{Row, SparkSession, SQLContext}
+import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 
 /**
