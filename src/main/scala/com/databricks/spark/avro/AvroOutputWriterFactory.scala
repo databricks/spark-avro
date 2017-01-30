@@ -26,11 +26,16 @@ private[avro] class AvroOutputWriterFactory(
     recordName: String,
     recordNamespace: String) extends OutputWriterFactory {
 
-  def newInstance(
+  override def newInstance(
       path: String,
-      bucketId: Option[Int],
       dataSchema: StructType,
       context: TaskAttemptContext): OutputWriter = {
     new AvroOutputWriter(path, context, schema, recordName, recordNamespace)
   }
+
+  override def getFileExtension(context: TaskAttemptContext): String = {
+    ".avro"
+  }
+
+
 }
