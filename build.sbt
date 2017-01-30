@@ -2,13 +2,13 @@ name := "spark-avro"
 
 organization := "com.databricks"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.0.0"
+sparkVersion := "2.1.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
