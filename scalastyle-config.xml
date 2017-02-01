@@ -141,4 +141,8 @@
  <check level="error" class="org.scalastyle.file.NoNewLineAtEofChecker" enabled="false"></check>
  <check level="error" class="org.scalastyle.scalariform.NonASCIICharacterChecker" enabled="true"></check>
  <check level="error" class="org.scalastyle.scalariform.SpaceAfterCommentStartChecker" enabled="true"></check>
+ <check customId="sparklogging" level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
+  <parameters><parameter name="regex">org.apache.spark.Logging</parameter></parameters>
+  <customMessage><![CDATA[Do not rely on Spark's Logging trait.]]></customMessage>
+ </check>
 </scalastyle>

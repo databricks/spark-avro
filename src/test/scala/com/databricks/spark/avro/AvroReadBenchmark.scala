@@ -1,10 +1,25 @@
+/*
+ * Copyright 2014 Databricks
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.databricks.spark.avro
 
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import org.apache.spark.SparkContext
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 
 
 /**
@@ -21,14 +36,15 @@ object AvroReadBenchmark {
         "is empty. First you should generate some files to run a benchmark with (see README)")
     }
 
-    val sqlContext = new SQLContext(new SparkContext("local[2]", "AvroReadBenchmark"))
+    val spark = SparkSession.builder().master("local[2]").appName("AvroReadBenchmark")
+      .getOrCreate()
 
-    sqlContext.read.avro(AvroFileGenerator.outputDir).count()
+    spark.read.avro(AvroFileGenerator.outputDir).count()
 
     println("\n\n\nStaring benchmark test - creating DataFrame from benchmark avro files\n\n\n")
 
     val startTime = System.nanoTime
-    sqlContext
+    spark
       .read
       .avro(AvroFileGenerator.outputDir)
       .select("string")
@@ -38,6 +54,6 @@ object AvroReadBenchmark {
 
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
-    sqlContext.sparkContext.stop()  // Otherwise scary exception message appears
+    spark.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

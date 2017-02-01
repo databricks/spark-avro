@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014 Databricks
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.databricks.spark.avro
 
 import java.sql.Date
@@ -5,10 +21,10 @@ import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConversions._
 import scala.util.Random
+
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.apache.spark.SparkContext
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 
 /**
@@ -46,12 +62,13 @@ object AvroWriteBenchmark {
 
     println(s"\n\n\nPreparing for a benchmark test - creating a RDD with $numberOfRows rows\n\n\n")
 
-    val sqlContext = new SQLContext(new SparkContext("local[2]", "AvroReadBenchmark"))
+    val spark = SparkSession.builder().master("local[2]").appName("AvroReadBenchmark")
+      .getOrCreate()
 
     val tempDir = Files.createTempDir()
     val avroDir = tempDir + "/avro"
-    val testDataFrame = sqlContext.createDataFrame(
-      sqlContext.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow()),
+    val testDataFrame = spark.createDataFrame(
+      spark.sparkContext.parallelize(0 until numberOfRows).map(_ => generateRandomRow()),
       testSchema)
 
     println("\n\n\nStaring benchmark test - writing a DataFrame as avro file\n\n\n")
@@ -66,6 +83,6 @@ object AvroWriteBenchmark {
     println(s"\n\n\nFinished benchmark test - result was $executionTime seconds\n\n\n")
 
     FileUtils.deleteDirectory(tempDir)
-    sqlContext.sparkContext.stop()  // Otherwise scary exception message appears
+    spark.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }

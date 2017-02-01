@@ -1,4 +1,4 @@
-# Avro Data Source for Spark
+# Avro Data Source for Apache Spark
 
 A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
@@ -7,47 +7,50 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for Spark 1.4+.
+This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
+documentation on earlier versions of this library, see the links below.
 
-This library has different versions for Spark 1.2, 1.3, and 1.4+:
+This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
-| ------------- |----------------------|
-| `1.2`         | `0.2.0`              |
-| `1.3`         | `1.0.0`              |
-| `1.4+`        | `2.0.1`              |
+| ------------- | ------------------------------------------------ |
+| `1.2`         | `0.2.0`                                          |
+| `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
+| `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
+| `2.0`         | `3.1.0` (this version)                           |
 
 ## Linking
 
-You can link against this library (for Spark 1.4+) in your program at the following coordinates:
+This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed below.
 
-Using SBT:
+You can link against this library in your program at the following coordinates:
+
+**Using SBT:**
 
 ```
-libraryDependencies += "com.databricks" %% "spark-avro" % "2.0.1"
+libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
 ```
 
-Using Maven:
+**Using Maven:**
 
 ```xml
 <dependency>
     <groupId>com.databricks</groupId>
     <artifactId>spark-avro_2.10</artifactId>
-    <version>2.0.1</version>
+    <version>3.1.0</version>
 </dependency>
 ```
+
+### With `spark-shell` or `spark-submit`
 
 This library can also be added to Spark jobs launched through `spark-shell` or `spark-submit` by using the `--packages` command line option.
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.10:2.0.1
+$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.1.0
 ```
 
-Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath.
-The `--packages` argument can also be used with `bin/spark-submit`.
-
-This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed above.
+Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
 
 ## Features
 
@@ -62,7 +65,7 @@ disk. The supported types are `uncompressed`, `snappy`, and `deflate`. You can a
 
 ## Supported types for Avro -> Spark SQL conversion
 
-This library supports reading all Avro types, with the exception of complex `union` types. It uses the following mapping from Avro types to Spark SQL types:
+This library supports reading all Avro types. It uses the following mapping from Avro types to Spark SQL types:
 
 | Avro type | Spark SQL type |
 | --------- |----------------|
@@ -78,12 +81,15 @@ This library supports reading all Avro types, with the exception of complex `uni
 | array     | ArrayType      |
 | map       | MapType        |
 | fixed     | BinaryType     |
+| union     | See below      |
 
-In addition to the types listed above, it supports reading of three types of `union` types:
+In addition to the types listed above, it supports reading `union` types. The following three types are considered basic `union` types:
 
-1. `union(int, long)`
-2. `union(float, double)`
-3. `union(something, null)`, where `something` is one of the supported Avro types listed above or is one of the supported `union` types.
+1. `union(int, long)` will be mapped to `LongType`.
+2. `union(float, double)` will be mapped to `DoubleType`.
+3. `union(something, null)`, where `something` is any supported Avro type. This will be mapped to the same Spark SQL type as that of `something`, with `nullable` set to `true`.
+
+All other `union` types are considered complex. They will be mapped to `StructType` where field names are `member0`, `member1`, etc., in accordance with members of the `union`. This is consistent with the behavior when converting between Avro and Parquet.
 
 At the moment, it ignores docs, aliases and other properties present in the Avro file.
 
@@ -112,39 +118,55 @@ These examples use an Avro file available for download
 ```scala
 // import needed for the .avro method to be added
 import com.databricks.spark.avro._
-		
-val sqlContext = new SQLContext(sc)
+import org.apache.spark.sql.SparkSession
+
+val spark = SparkSession.builder().master("local").getOrCreate()
 
 // The Avro records get converted to Spark types, filtered, and
 // then written back out as Avro records
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val df = spark.read.avro("src/test/resources/episodes.avro")
 df.filter("doctor > 5").write.avro("/tmp/output")
 ```
 
-Alternativly you can specify the format to use instead:
+Alternatively you can specify the format to use instead:
 
 ```scala
-val sqlContext = new SQLContext(sc)
-val df = sqlContext.read
-	.format("com.databricks.spark.avro")
-	.load("src/test/resources/episodes.avro")
-	
-df.filter("doctor > 5").write
-	.format("com.databricks.spark.avro")
-	.save("/tmp/output")
+val spark = SparkSession.builder().master("local").getOrCreate()
+val df = spark.read
+    .format("com.databricks.spark.avro")
+    .load("src/test/resources/episodes.avro")
+
+df.filter("doctor > 5").write.format("com.databricks.spark.avro").save("/tmp/output")
+```
+
+You can specify a custom Avro schema:
+
+```scala
+import org.apache.avro.Schema
+import org.apache.spark.sql.SparkSession
+
+val schema = new Schema.Parser().parse(new File("user.avsc"))
+val spark = SparkSession.builder().master("local").getOrCreate()
+spark
+  .read
+  .format("com.databricks.spark.avro")
+  .option("avroSchema", schema.toString)
+  .load("src/test/resources/episodes.avro").show()
 ```
 
 You can also specify Avro compression options:
 
 ```scala
 import com.databricks.spark.avro._
-val sqlContext = new SQLContext(sc)
+import org.apache.spark.sql.SparkSession
+
+val spark = SparkSession.builder().master("local").getOrCreate()
 
 // configuration to use deflate compression
-sqlContext.setConf("spark.sql.avro.compression.codec", "deflate")
-sqlContext.setConf("spark.sql.avro.deflate.level", "5")
+spark.conf.set("spark.sql.avro.compression.codec", "deflate")
+spark.conf.set("spark.sql.avro.deflate.level", "5")
 
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val df = spark.read.avro("src/test/resources/episodes.avro")
 
 // writes out compressed Avro records
 df.write.avro("/tmp/output")
@@ -154,27 +176,29 @@ You can write partitioned Avro records like this:
 
 ```scala
 import com.databricks.spark.avro._
+import org.apache.spark.sql.SparkSession
 
-val sqlContext = new SQLContext(sc)
+val spark = SparkSession.builder().master("local").getOrCreate()
 
-import sqlContext.implicits._
+val df = spark.createDataFrame(
+  Seq(
+    (2012, 8, "Batman", 9.8),
+    (2012, 8, "Hero", 8.7),
+    (2012, 7, "Robot", 5.5),
+    (2011, 7, "Git", 2.0))
+  ).toDF("year", "month", "title", "rating")
 
-val df = Seq((2012, 8, "Batman", 9.8),
-	(2012, 8, "Hero", 8.7),
-	(2012, 7, "Robot", 5.5),
-	(2011, 7, "Git", 2.0))
-	.toDF("year", "month", "title", "rating")
-
-df.write.partitionBy("year", "month").avro("/tmp/output")
+df.toDF.write.partitionBy("year", "month").avro("/tmp/output")
 ```
 
 You can specify the record name and namespace like this:
 
 ```scala
 import com.databricks.spark.avro._
+import org.apache.spark.sql.SparkSession
 
-val sqlContext = new SQLContext(sc)
-val df = sqlContext.read.avro("src/test/resources/episodes.avro")
+val spark = SparkSession.builder().master("local").getOrCreate()
+val df = spark.read.avro("src/test/resources/episodes.avro")
 
 val name = "AvroTest"
 val namespace = "com.databricks.spark.avro"
@@ -187,29 +211,29 @@ df.write.options(parameters).avro("/tmp/output")
 
 ```java
 import org.apache.spark.sql.*;
+import org.apache.spark.sql.functions;
 
-SQLContext sqlContext = new SQLContext(sc);
+SparkSession spark = SparkSession.builder().master("local").getOrCreate();
 
 // Creates a DataFrame from a specified file
-DataFrame df = sqlContext.read().format("com.databricks.spark.avro")
-    .load("src/test/resources/episodes.avro");
+Dataset<Row> df = spark.read().format("com.databricks.spark.avro")
+  .load("src/test/resources/episodes.avro");
 
 // Saves the subset of the Avro records read in
-df.filter($"age > 5").write()
-	.format("com.databricks.spark.avro")
-	.save("/tmp/output");
+df.filter(functions.expr("doctor > 5")).write()
+  .format("com.databricks.spark.avro")
+  .save("/tmp/output");
 ```
-
 
 ### Python API
 
 ```python
 # Creates a DataFrame from a specified directory
-df = sqlContext.read.format("com.databricks.spark.avro").load("src/test/resources/episodes.avro")
+df = spark.read.format("com.databricks.spark.avro").load("src/test/resources/episodes.avro")
 
 #  Saves the subset of the Avro records read in
-subset = df.where("age > 5")
-subset.write.format("com.databricks.spark.avro").save("output")
+subset = df.where("doctor > 5")
+subset.write.format("com.databricks.spark.avro").save("/tmp/output")
 ```
 
 ### SQL API
@@ -220,9 +244,6 @@ CREATE TEMPORARY TABLE episodes
 USING com.databricks.spark.avro
 OPTIONS (path "src/test/resources/episodes.avro")
 ```
-
-
-
 ## Building From Source
 This library is built with [SBT](http://www.scala-sbt.org/0.13/docs/Command-Line-Reference.html),
 which is automatically downloaded by the included shell script.  To build a JAR file simply run
