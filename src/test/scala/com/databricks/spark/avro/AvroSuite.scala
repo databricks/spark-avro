@@ -27,11 +27,13 @@ import org.apache.spark.SparkConf
 import scala.collection.JavaConversions._
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
-import org.apache.avro.Schema.{Field, Type}
+import org.apache.avro.Schema.{Field, Parser, Type}
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord, GenericRecordBuilder}
+import org.apache.avro.io.{DecoderFactory, JsonDecoder}
+import org.apache.avro.specific.{SpecificData, SpecificDatumReader}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
@@ -897,14 +899,12 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
     val rdd = sparkSession.sparkContext
       .parallelize(Seq(1)).mapPartitions { iter =>
-      iter.map { _ =>
-        val t = StringArray.newBuilder().setValue(List("the title")).build()
-        val b = StringArray.newBuilder().setValue(List("BODY TEXT")).build()
-        val ls = StringArray.newBuilder().setValue(List("foo", "bar", "baz")).build()
+        iter.map { _ =>
+          val ls = StringArray.newBuilder().setValue(List("foo", "bar", "baz")).build()
 
-        Feature.newBuilder().setKey("FOOBAR").setValue(ls).build()
+          Feature.newBuilder().setKey("FOOBAR").setValue(ls).build()
+        }
       }
-    }
 
     val ds = rdd.toDS()
     assert(ds.count() == 1)

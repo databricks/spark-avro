@@ -22,13 +22,10 @@ package com.databricks.spark.avro
 
 import java.io._
 import java.util.{Map => JMap}
-import org.apache.avro.Schema.Parser
-import org.apache.hadoop.conf.Configuration
-import org.apache.spark.util.Utils
 
-import scala.collection.JavaConverters._
 import com.databricks.spark.avro.SchemaConverters.{IncompatibleSchemaException, SchemaType, resolveUnionType, toSqlType}
 import org.apache.avro.Schema
+import org.apache.avro.Schema.Parser
 import org.apache.avro.Schema.Type._
 import org.apache.avro.generic.{GenericData, IndexedRecord}
 import org.apache.avro.reflect.ReflectData
@@ -39,12 +36,13 @@ import org.apache.spark.sql.catalyst.analysis.{GetColumnByOrdinal, UnresolvedAtt
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
-import org.apache.spark.sql.catalyst.expressions.objects._
+import org.apache.spark.sql.catalyst.expressions.objects.{LambdaVariable => _, _}
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, GenericArrayData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 /**
@@ -74,19 +72,179 @@ object AvroEncoder {
   }
 }
 
-object ObjectType {
+private[avro] object ObjectType {
+  val ot = Class.forName("org.apache.spark.sql.types.ObjectType")
+  val meth = ot.getDeclaredConstructor(classOf[Class[_]])
+  meth.setAccessible(true)
+
+  val cls = ot.getMethod("cls")
+  cls.setAccessible(true)
+
   def apply(cls: Class[_]): DataType = {
-    val ot = Class.forName("org.apache.spark.sql.types.ObjectType")
-    val meth = ot.getDeclaredConstructor(classOf[Class[_]])
-    meth.setAccessible(true)
     meth.newInstance(cls).asInstanceOf[DataType]
   }
 
   def _isInstanceOf(obj: AnyRef): Boolean = {
-    val ot = Class.forName("org.apache.spark.sql.types.ObjectType")
     ot.isInstance(obj)
   }
+
+  def unapply(arg: DataType): Option[Class[_]] = {
+    arg match {
+      case arg if ot.isInstance(arg) => {
+        Some(cls.invoke(arg).asInstanceOf[Class[_]])
+      }
+      case _ => None
+    }
+  }
 }
+
+case class LambdaVariable(
+    value: String,
+    isNull: String,
+    dataType: DataType,
+    nullable: Boolean = true) extends LeafExpression
+  with Unevaluable with NonSQLExpression {
+
+  override def genCode(ctx: CodegenContext): ExprCode = {
+    ExprCode(code = "", value = value, isNull = if (nullable) isNull else "false")
+  }
+}
+
+object ExternalMapToCatalyst {
+  private val curId = new java.util.concurrent.atomic.AtomicInteger()
+
+  def apply(
+             inputMap: Expression,
+             keyType: DataType,
+             keyConverter: Expression => Expression,
+             valueType: DataType,
+             valueConverter: Expression => Expression,
+             valueNullable: Boolean): ExternalMapToCatalyst = {
+    val id = curId.getAndIncrement()
+    val keyName = "ExternalMapToCatalyst_key" + id
+    val valueName = "ExternalMapToCatalyst_value" + id
+    val valueIsNull = "ExternalMapToCatalyst_value_isNull" + id
+
+    ExternalMapToCatalyst(
+      keyName,
+      keyType,
+      keyConverter(LambdaVariable(keyName, "false", keyType, false)),
+      valueName,
+      valueIsNull,
+      valueType,
+      valueConverter(LambdaVariable(valueName, valueIsNull, valueType, valueNullable)),
+      inputMap
+    )
+  }
+}
+
+case class ExternalMapToCatalyst private(
+                                          key: String,
+                                          keyType: DataType,
+                                          keyConverter: Expression,
+                                          value: String,
+                                          valueIsNull: String,
+                                          valueType: DataType,
+                                          valueConverter: Expression,
+                                          child: Expression)
+  extends UnaryExpression with NonSQLExpression {
+
+  override def foldable: Boolean = false
+
+  override def dataType: MapType = MapType(
+    keyConverter.dataType, valueConverter.dataType, valueContainsNull = valueConverter.nullable)
+
+  override def eval(input: InternalRow): Any =
+    throw new UnsupportedOperationException("Only code-generated evaluation is supported")
+
+  override protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
+    val inputMap = child.genCode(ctx)
+    val genKeyConverter = keyConverter.genCode(ctx)
+    val genValueConverter = valueConverter.genCode(ctx)
+    val length = ctx.freshName("length")
+    val index = ctx.freshName("index")
+    val convertedKeys = ctx.freshName("convertedKeys")
+    val convertedValues = ctx.freshName("convertedValues")
+    val entry = ctx.freshName("entry")
+    val entries = ctx.freshName("entries")
+
+    val (defineEntries, defineKeyValue) = child.dataType match {
+      case ObjectType(cls) if classOf[java.util.Map[_, _]].isAssignableFrom(cls) =>
+        val javaIteratorCls = classOf[java.util.Iterator[_]].getName
+        val javaMapEntryCls = classOf[java.util.Map.Entry[_, _]].getName
+
+        val defineEntries =
+          s"final $javaIteratorCls $entries = ${inputMap.value}.entrySet().iterator();"
+
+        val defineKeyValue =
+          s"""
+            final $javaMapEntryCls $entry = ($javaMapEntryCls) $entries.next();
+            ${ctx.javaType(keyType)} $key = (${ctx.boxedType(keyType)}) $entry.getKey();
+            ${ctx.javaType(valueType)} $value = (${ctx.boxedType(valueType)}) $entry.getValue();
+          """
+
+        defineEntries -> defineKeyValue
+
+      case ObjectType(cls) if classOf[scala.collection.Map[_, _]].isAssignableFrom(cls) =>
+        val scalaIteratorCls = classOf[Iterator[_]].getName
+        val scalaMapEntryCls = classOf[Tuple2[_, _]].getName
+
+        val defineEntries = s"final $scalaIteratorCls $entries = ${inputMap.value}.iterator();"
+
+        val defineKeyValue =
+          s"""
+            final $scalaMapEntryCls $entry = ($scalaMapEntryCls) $entries.next();
+            ${ctx.javaType(keyType)} $key = (${ctx.boxedType(keyType)}) $entry._1();
+            ${ctx.javaType(valueType)} $value = (${ctx.boxedType(valueType)}) $entry._2();
+          """
+
+        defineEntries -> defineKeyValue
+    }
+
+    val valueNullCheck = if (ctx.isPrimitiveType(valueType)) {
+      s"boolean $valueIsNull = false;"
+    } else {
+      s"boolean $valueIsNull = $value == null;"
+    }
+
+    val arrayCls = classOf[GenericArrayData].getName
+    val mapCls = classOf[ArrayBasedMapData].getName
+    val convertedKeyType = ctx.boxedType(keyConverter.dataType)
+    val convertedValueType = ctx.boxedType(valueConverter.dataType)
+    val code =
+      s"""
+        ${inputMap.code}
+        ${ctx.javaType(dataType)} ${ev.value} = ${ctx.defaultValue(dataType)};
+        if (!${inputMap.isNull}) {
+          final int $length = ${inputMap.value}.size();
+          final Object[] $convertedKeys = new Object[$length];
+          final Object[] $convertedValues = new Object[$length];
+          int $index = 0;
+          $defineEntries
+          while($entries.hasNext()) {
+            $defineKeyValue
+            $valueNullCheck
+            ${genKeyConverter.code}
+            if (${genKeyConverter.isNull}) {
+              throw new RuntimeException("Cannot use null as map key!");
+            } else {
+              $convertedKeys[$index] = ($convertedKeyType) ${genKeyConverter.value};
+            }
+            ${genValueConverter.code}
+            if (${genValueConverter.isNull}) {
+              $convertedValues[$index] = null;
+            } else {
+              $convertedValues[$index] = ($convertedValueType) ${genValueConverter.value};
+            }
+            $index++;
+          }
+          ${ev.value} = new $mapCls(new $arrayCls($convertedKeys), new $arrayCls($convertedValues));
+        }
+      """
+    ev.copy(code = code, isNull = inputMap.isNull)
+  }
+}
+
 
 class SerializableSchema(@transient var value: Schema) extends Externalizable {
   def this() = this(null)
@@ -425,13 +583,13 @@ private object AvroTypeInference {
       val valueSchema = schema.getValueType
       val valueType = inferExternalType(valueSchema)
 
-//      ExternalMapToCatalyst(
-//        inputObject,
-//        ObjectType(classOf[org.apache.avro.util.Utf8]),
-//        serializerFor(_, Schema.create(STRING)),
-//        valueType,
-//        serializerFor(_, valueSchema))
-      ???
+      ExternalMapToCatalyst(
+        inputObject,
+        ObjectType(classOf[org.apache.avro.util.Utf8]),
+        serializerFor(_, Schema.create(STRING)),
+        valueType,
+        serializerFor(_, valueSchema),
+        true)
     }
 
     if (!ObjectType._isInstanceOf(inputObject.dataType)) {
