@@ -16,21 +16,26 @@
 
 package com.databricks.spark.avro
 
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapreduce.TaskAttemptContext
-
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
 
-private[avro] class AvroOutputWriterFactory(
-    schema: StructType,
-    recordName: String,
-    recordNamespace: String) extends OutputWriterFactory {
+private[avro] class Spark21AvroOutputWriterFactory(
+   schema: StructType,
+   recordName: String,
+   recordNamespace: String) extends OutputWriterFactory {
 
   def newInstance(
-      path: String,
-      bucketId: Option[Int],
-      dataSchema: StructType,
-      context: TaskAttemptContext): OutputWriter = {
-    new AvroOutputWriter(path, context, schema, recordName, recordNamespace)
+                   path: String,
+                   dataSchema: StructType,
+                   context: TaskAttemptContext): OutputWriter = {
+    new AvroOutputWriter(path, context, schema, recordName, recordNamespace) {
+      override def doGetDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
+        new Path(path)
+      }
+    }
   }
+
+  override def getFileExtension(context: TaskAttemptContext): String = ".avro"
 }

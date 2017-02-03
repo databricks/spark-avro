@@ -46,6 +46,13 @@ private[avro] class AvroOutputWriter(
 
   private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
 
+  protected def doGetDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
+    val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
+    val taskAttemptId: TaskAttemptID = context.getTaskAttemptID
+    val split = taskAttemptId.getTaskID.getId
+    new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
+  }
+
   /**
    * Overrides the couple of methods responsible for generating the output streams / files so
    * that the data can be correctly partitioned
@@ -54,10 +61,7 @@ private[avro] class AvroOutputWriter(
     new AvroKeyOutputFormat[GenericRecord]() {
 
       override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
-        val uniqueWriteJobId = context.getConfiguration.get("spark.sql.sources.writeJobUUID")
-        val taskAttemptId: TaskAttemptID = context.getTaskAttemptID
-        val split = taskAttemptId.getTaskID.getId
-        new Path(path, f"part-r-$split%05d-$uniqueWriteJobId$extension")
+        doGetDefaultWorkFile(context, extension)
       }
 
       @throws(classOf[IOException])

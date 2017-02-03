@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.0.0"
+sparkVersion := "2.1.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -33,6 +33,13 @@ spIncludeMaven := true
 spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
+
+unmanagedSourceDirectories in Compile += {
+  sparkVersion.value match {
+    case v if v.startsWith("2.0.") => baseDirectory.value / "src" / "main" / "scala-spark20"
+    case v                         => baseDirectory.value / "src" / "main" / "scala-spark21"
+  }
+}
 
 libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.5",
@@ -104,7 +111,7 @@ pomExtra :=
 
 bintrayReleaseOnPublish in ThisBuild := false
 
-import ReleaseTransformations._
+import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
 
 // Add publishing to spark packages as another step.
 releaseProcess := Seq[ReleaseStep](
