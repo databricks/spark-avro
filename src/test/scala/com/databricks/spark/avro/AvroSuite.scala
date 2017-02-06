@@ -35,6 +35,8 @@ import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord, 
 import org.apache.avro.io.{DecoderFactory, JsonDecoder}
 import org.apache.avro.specific.{SpecificData, SpecificDatumReader}
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs
+import org.apache.hadoop.fs.Path
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
@@ -572,9 +574,10 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("SQL test insert overwrite") {
     TestUtils.withTempDir { tempDir =>
-      val tempEmptyDir = s"$tempDir/sqlOverwrite"
+      val tempEmptyDir = new Path(s"$tempDir/sqlOverwrite")
       // Create a temp directory for table that will be overwritten
-      new File(tempEmptyDir).mkdirs()
+      val local = fs.FileSystem.getLocal(spark.sparkContext.hadoopConfiguration)
+      local.mkdirs(tempEmptyDir)
       spark.sql(
         s"""
            |CREATE TEMPORARY TABLE episodes
