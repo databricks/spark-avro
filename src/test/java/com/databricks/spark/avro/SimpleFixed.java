@@ -3,7 +3,14 @@
  * 
  * DO NOT EDIT DIRECTLY
  */
-package com.databricks.spark.avro;  
+package com.databricks.spark.avro;
+
+import org.apache.avro.Schema;
+
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+
 @SuppressWarnings("all")
 @org.apache.avro.specific.FixedSize(16)
 @org.apache.avro.specific.AvroGenerated
@@ -19,5 +26,17 @@ public class SimpleFixed extends org.apache.avro.specific.SpecificFixed {
   /** Creates a new SimpleFixed with the given bytes */
   public SimpleFixed(byte[] bytes) {
     super(bytes);
+  }
+
+  public void writeExternal(ObjectOutput out) throws IOException {
+    //
+  }
+
+  public void readExternal(ObjectInput in) throws IOException {
+    //
+  }
+
+  public Schema getSchema() {
+    return getClassSchema();
   }
 }

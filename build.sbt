@@ -1,10 +1,15 @@
-name := "spark-avro"
+
+lazy val commonSettings = Seq(
+  organization := "com.databricks",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.5", "2.11.7")
+)
 
 organization := "com.databricks"
-
 scalaVersion := "2.11.7"
-
 crossScalaVersions := Seq("2.10.5", "2.11.7")
+
+name := "spark-avro"
 
 spName := "databricks/spark-avro"
 
@@ -34,12 +39,12 @@ spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
 
-unmanagedSourceDirectories in Compile += {
-  sparkVersion.value match {
-    case v if v.startsWith("2.0.") => baseDirectory.value / "src" / "main" / "scala-spark20"
-    case v                         => baseDirectory.value / "src" / "main" / "scala-spark21"
-  }
-}
+//unmanagedSourceDirectories in Compile += {
+//  sparkVersion.value match {
+//    case v if v.startsWith("2.0.") => baseDirectory.value / "src" / "main" / "scala-spark20"
+//    case v                         => baseDirectory.value / "src" / "main" / "scala-spark21"
+//  }
+//}
 
 libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.5",
@@ -111,6 +116,7 @@ pomExtra :=
 
 bintrayReleaseOnPublish in ThisBuild := false
 
+import sbt.Keys.crossScalaVersions
 import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
 
 // Add publishing to spark packages as another step.
@@ -127,3 +133,37 @@ releaseProcess := Seq[ReleaseStep](
   pushChanges,
   releaseStepTask(spPublish)
 )
+
+lazy val spark21xProj = project.in(file("spark-2.1.x")).settings(
+//  organization := "com.databricks",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.5", "2.11.7"),
+  libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.1.0" % "provided"
+)
+lazy val spark20xProj = project.in(file("spark-2.0.x")).settings(
+//  organization := "com.databricks",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.5", "2.11.7"),
+  libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.0.0" % "provided"
+)
+
+aggregateProjects(spark20xProj, spark21xProj)
+
+dependsOn(spark21xProj)
+dependsOn(spark20xProj)
+
+//projectDependencies := {
+//  Seq(
+//    (projectID in spark20xProj).value.exclude("org.apache.spark", "spark-sql"),
+//    (projectID in spark21xProj).value.exclude("org.apache.spark", "spark-sql")
+//  )
+//}
+//
+//
+//
+//mappings in (Compile, packageBin) ++= {
+//  (dependencyClasspath in Runtime).value.foreach { i =>
+//    println(s"%%%%%%%%% ${i}")
+//  }
+//  Seq()
+//}
