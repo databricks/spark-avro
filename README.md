@@ -7,7 +7,7 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
+This documentation is for version 3.2.0 of this library, which supports Spark 2.0+. For
 documentation on earlier versions of this library, see the links below.
 
 This library has different versions for Spark 1.2, 1.3, 1.4 through 1.6, and 2.0+:
