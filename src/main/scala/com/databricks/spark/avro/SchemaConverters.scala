@@ -18,13 +18,11 @@ package com.databricks.spark.avro
 import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
-
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
-
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.types._
 
@@ -74,35 +72,47 @@ object SchemaConverters {
           nullable = false)
 
       case UNION =>
-        if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
-          // In case of a union with null, eliminate it and make a recursive call
-          val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
-          if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.head).copy(nullable = true)
-          } else {
-            toSqlType(Schema.createUnion(remainingUnionTypes.asJava)).copy(nullable = true)
-          }
-        } else avroSchema.getTypes.asScala.map(_.getType) match {
-          case Seq(t1) =>
-            toSqlType(avroSchema.getTypes.get(0))
-          case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
-            SchemaType(LongType, nullable = false)
-          case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
-            SchemaType(DoubleType, nullable = false)
-          case _ =>
-            // Convert complex unions to struct types where field names are member0, member1, etc.
-            // This is consistent with the behavior when converting between Avro and Parquet.
-            val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
-              case (s, i) =>
-                val schemaType = toSqlType(s)
-                // All fields are nullable because only one of them is set at a time
-                StructField(s"member$i", schemaType.dataType, nullable = true)
-            }
-
-            SchemaType(StructType(fields), nullable = false)
+        resolveUnionType(avroSchema) match {
+          case (schema, nullable) => toSqlType(schema).copy(nullable = nullable)
         }
 
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")
+    }
+  }
+
+  /**
+   * Resolves an avro UNION type to an SQL-compatible avro type. Converts complex unions to records
+   * if necessary.
+   */
+  def resolveUnionType(avroSchema: Schema, nullable: Boolean = false): (Schema, Boolean) = {
+    if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
+      // In case of a union with null, eliminate it, and make a recursive call
+      val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
+      if (remainingUnionTypes.size == 1) {
+        (remainingUnionTypes.head, true)
+      } else {
+        resolveUnionType(Schema.createUnion(remainingUnionTypes.asJava), nullable = true)
+      }
+    } else avroSchema.getTypes.asScala.map(_.getType) match {
+      case Seq(t1) =>
+        (avroSchema.getTypes.get(0), true)
+      case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
+        (Schema.create(LONG), false)
+      case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
+        (Schema.create(DOUBLE), false)
+      case _ =>
+        // Convert complex unions to records where field names are member0, member1, etc.
+        // This is consistent with the behavior when converting between Avro and Parquet.
+        val record = SchemaBuilder.record(avroSchema.getName).fields()
+        avroSchema.getTypes.asScala.zipWithIndex.foreach {
+          case (s, i) =>
+            // All fields are nullable because only one of them is set at a time
+            record.name(s"member$i").`type`(SchemaBuilder.unionOf()
+              .`type`(Schema.create(NULL)).and
+              .`type`(s).endUnion())
+              .withDefault(null)
+        }
+        (record.endRecord(), false)
     }
   }
 
