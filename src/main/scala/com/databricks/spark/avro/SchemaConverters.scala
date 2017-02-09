@@ -18,15 +18,15 @@ package com.databricks.spark.avro
 import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
-
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
-
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.rdd.RDD
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
@@ -37,6 +37,26 @@ object SchemaConverters {
   class IncompatibleSchemaException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
+
+  /**
+    * Convert a [[RDD]] of [[GenericRecord]]s to a [[DataFrame]]
+    *
+    * @param rdd the [[RDD]]
+    * @return the [[DataFrame]]
+    */
+  def rddToDataFrame(rdd: RDD[GenericRecord]): DataFrame = {
+    val spark = SparkSession
+      .builder
+      .config(rdd.sparkContext.getConf)
+      .getOrCreate()
+
+    val avroSchema = rdd.take(1)(0).getSchema
+    val dataFrameSchema = toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+    val converter = createConverterToSQL(avroSchema, dataFrameSchema)
+    val rows = rdd.map(converter(_).asInstanceOf[Row])
+
+    spark.createDataFrame(rows, dataFrameSchema)
+  }
 
   /**
    * This function takes an avro schema and returns a sql schema.
