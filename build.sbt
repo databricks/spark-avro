@@ -139,31 +139,50 @@ lazy val spark21xProj = project.in(file("spark-2.1.x")).settings(
   scalaVersion := "2.11.7",
   crossScalaVersions := Seq("2.10.5", "2.11.7"),
   libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.1.0" % "provided"
-)
+).disablePlugins(SparkPackagePlugin)
+
+
 lazy val spark20xProj = project.in(file("spark-2.0.x")).settings(
 //  organization := "com.databricks",
   scalaVersion := "2.11.7",
   crossScalaVersions := Seq("2.10.5", "2.11.7"),
   libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.0.0" % "provided"
-)
+).disablePlugins(SparkPackagePlugin)
 
 aggregateProjects(spark20xProj, spark21xProj)
 
 dependsOn(spark21xProj)
 dependsOn(spark20xProj)
 
-//projectDependencies := {
-//  Seq(
-//    (projectID in spark20xProj).value.exclude("org.apache.spark", "spark-sql"),
-//    (projectID in spark21xProj).value.exclude("org.apache.spark", "spark-sql")
-//  )
-//}
-//
-//
-//
-//mappings in (Compile, packageBin) ++= {
-//  (dependencyClasspath in Runtime).value.foreach { i =>
-//    println(s"%%%%%%%%% ${i}")
-//  }
-//  Seq()
-//}
+projectDependencies := {
+  Seq(
+    (projectID in spark20xProj).value.excludeAll(ExclusionRule(organization = "*")),
+    (projectID in spark21xProj).value.excludeAll(ExclusionRule(organization = "*"))
+  )
+}
+
+
+def createMappingForPackage(base: File): Seq[(File, String)] = {
+  import Path._
+
+  (base ** (-DirectoryFilter)).get.map { f =>
+    f -> IO.relativize(base, f)
+  }.collect {
+    case (f, Some(p)) => (f, p)
+  }
+}
+
+mappings in (Compile, packageBin) ++= {
+  import Path._
+
+  val base = (dependencyClasspath in Runtime).value.collect {
+    case i if i.get(moduleID.key).exists(_ == (projectID in spark20xProj).value) => i.data
+    case i if i.get(moduleID.key).exists(_ == (projectID in spark21xProj).value) => i.data
+  }
+
+  val m = base.flatMap(createMappingForPackage)
+
+  println("****** ret ********")
+  println(m)
+  m
+}
