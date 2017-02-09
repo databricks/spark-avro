@@ -30,8 +30,10 @@ import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.mapred.{AvroInputFormat, AvroWrapper}
 import org.apache.commons.io.FileUtils
 
+import org.apache.hadoop.io.NullWritable
 import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
@@ -48,6 +50,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       .master("local[2]")
       .appName("AvroSuite")
       .config("spark.sql.files.maxPartitionBytes", 1024)
+      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .getOrCreate()
   }
 
@@ -57,6 +60,20 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     } finally {
       super.afterAll()
     }
+  }
+
+  test("converting rdd to dataframe") {
+    val rdd = spark.sparkContext.hadoopFile[
+        AvroWrapper[GenericRecord],
+        NullWritable,
+        AvroInputFormat[GenericRecord]
+      ](testFile).map(_._1.datum)
+
+    val df1 = SchemaConverters.rddToDataFrame(rdd, spark)
+    val df2 = spark.read.avro(testFile)
+
+    assert(df1.schema.simpleString === df2.schema.simpleString)
+    assert(df1.orderBy("string").collect === df2.orderBy("string").collect)
   }
 
   test("reading and writing partitioned data") {
