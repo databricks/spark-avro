@@ -136,17 +136,13 @@ lazy val spark20xProj = project.in(file("spark-2.0.x")).settings(
   libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.0.0" % "provided"
 ).disablePlugins(SparkPackagePlugin)
 
-mappings in (Compile, packageBin) ++= {
-  import Path._
 
-  def createMappingForPackage(base: File): Seq[(File, String)] = {
-    (base ** (-DirectoryFilter)).get.flatMap { f =>
-      IO.relativize(base, f).map(f -> _)
-    }
-  }
-
-  val compatClasses = (exportedProducts in (spark20xProj, Runtime)).value ++
+unmanagedClasspath in Test ++= {
+  (exportedProducts in (spark20xProj, Runtime)).value ++
     (exportedProducts in (spark21xProj, Runtime)).value
-
-  compatClasses.flatMap { x => createMappingForPackage(x.data) }
 }
+
+products in (Compile, packageBin) ++= Seq(
+  (classDirectory in (spark20xProj, Compile)).value,
+  (classDirectory in (spark21xProj, Compile)).value
+)
