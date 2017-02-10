@@ -18,6 +18,7 @@ package com.databricks.spark.avro
 import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 import org.apache.avro.generic.GenericData.Fixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
@@ -61,11 +62,8 @@ object SchemaConverters {
       val dataFrameSchema = toSqlType(avroSchema).dataType.asInstanceOf[StructType]
       val converter = createConverterToSQL(avroSchema, dataFrameSchema)
 
-      val rowRdd = rdd.flatMap {
-        converter(_) match {
-          case row: Row => Some(row)
-          case _ => None
-        }
+      val rowRdd = rdd.flatMap { record =>
+        Try(converter(record).asInstanceOf[Row]).toOption
       }
 
       spark.createDataFrame(rowRdd, dataFrameSchema)
