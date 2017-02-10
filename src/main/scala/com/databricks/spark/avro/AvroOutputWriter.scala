@@ -21,20 +21,19 @@ import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.util.HashMap
 
-import org.apache.hadoop.fs.Path
-import scala.collection.immutable.Map
-
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
-import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
+import org.apache.avro.{Schema, SchemaBuilder}
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
-
+import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types._
+
+import scala.collection.immutable.Map
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
 private[avro] class AvroOutputWriter(

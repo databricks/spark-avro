@@ -7,17 +7,17 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
+This documentation is for version 3.2.0 of this library, which supports Spark 2.0+. For
 documentation on earlier versions of this library, see the links below.
 
-This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
+This library has different versions for Spark 1.2, 1.3, 1.4 through 1.6, and 2.0+:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
 | ------------- | ------------------------------------------------ |
 | `1.2`         | `0.2.0`                                          |
 | `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
-| `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
-| `2.0`         | `3.1.0` (this version)                           |
+| `1.4`-`1.6`   | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
+| `2.0+`        | `3.2.0` (this version)                           |
 
 ## Linking
 
@@ -28,7 +28,7 @@ You can link against this library in your program at the following coordinates:
 **Using SBT:**
 
 ```
-libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
+libraryDependencies += "com.databricks" %% "spark-avro" % "3.2.0"
 ```
 
 **Using Maven:**
@@ -37,7 +37,7 @@ libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
 <dependency>
     <groupId>com.databricks</groupId>
     <artifactId>spark-avro_2.10</artifactId>
-    <version>3.1.0</version>
+    <version>3.2.0</version>
 </dependency>
 ```
 
@@ -47,7 +47,7 @@ This library can also be added to Spark jobs launched through `spark-shell` or `
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.1.0
+$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.2.0
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
