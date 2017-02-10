@@ -25,6 +25,7 @@ import java.util.UUID
 import scala.collection.JavaConversions._
 
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
+import com.databricks.spark.avro.SchemaConverters.RddToDataFrame
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
@@ -69,7 +70,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         AvroInputFormat[GenericRecord]
       ](testFile).map(_._1.datum)
 
-    val df1 = SchemaConverters.rddToDataFrame(rdd, spark)
+    val df1 = rdd.toDF
     val df2 = spark.read.avro(testFile)
 
     assert(df1.schema.simpleString === df2.schema.simpleString)

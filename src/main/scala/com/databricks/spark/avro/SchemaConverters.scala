@@ -41,20 +41,35 @@ object SchemaConverters {
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
   /**
-    * Convert a [[RDD]] of [[GenericRecord]]s to a [[DataFrame]]
+    * Extensions to [[RDD]]s of [[GenericRecord]]s.
     *
-    * @param rdd the [[RDD]]
-    * @param spark the [[SparkSession]]
-    * @return the [[DataFrame]]
+    * @param rdd the [[RDD]] to decorate with additional functionality.
     */
-  def rddToDataFrame(rdd: RDD[GenericRecord],
-                     spark: SparkSession): DataFrame = {
-    val avroSchema = rdd.take(1)(0).getSchema
-    val dataFrameSchema = toSqlType(avroSchema).dataType.asInstanceOf[StructType]
-    val converter = createConverterToSQL(avroSchema, dataFrameSchema)
-    val rows = rdd.map(converter(_).asInstanceOf[Row])
+  implicit class RddToDataFrame(val rdd: RDD[GenericRecord]) {
+    /**
+      * Convert a [[RDD]] of [[GenericRecord]]s to a [[DataFrame]]
+      *
+      * @return the [[DataFrame]]
+      */
+    def toDF(): DataFrame = {
+      val spark = SparkSession
+        .builder
+        .config(rdd.sparkContext.getConf)
+        .getOrCreate()
 
-    spark.createDataFrame(rows, dataFrameSchema)
+      val avroSchema = rdd.take(1)(0).getSchema
+      val dataFrameSchema = toSqlType(avroSchema).dataType.asInstanceOf[StructType]
+      val converter = createConverterToSQL(avroSchema, dataFrameSchema)
+
+      val rowRdd = rdd.flatMap {
+        converter(_) match {
+          case row: Row => Some(row)
+          case _ => None
+        }
+      }
+
+      spark.createDataFrame(rowRdd, dataFrameSchema)
+    }
   }
 
   /**
