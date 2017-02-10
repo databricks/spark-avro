@@ -422,7 +422,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("sql test") {
     spark.sql(
       s"""
-         |CREATE TEMPORARY TABLE avroTable
+         |CREATE TEMPORARY VIEW avroTable
          |USING com.databricks.spark.avro
          |OPTIONS (path "$episodesFile")
       """.stripMargin.replaceAll("\n", " "))
@@ -580,13 +580,13 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       local.mkdirs(tempEmptyDir)
       spark.sql(
         s"""
-           |CREATE TEMPORARY TABLE episodes
+           |CREATE TEMPORARY VIEW episodes
            |USING com.databricks.spark.avro
            |OPTIONS (path "$episodesFile")
          """.stripMargin.replaceAll("\n", " "))
       spark.sql(
         s"""
-           |CREATE TEMPORARY TABLE episodesEmpty
+           |CREATE TEMPORARY VIEW episodesEmpty
            |(name string, air_date string, doctor int)
            |USING com.databricks.spark.avro
            |OPTIONS (path "$tempEmptyDir")
