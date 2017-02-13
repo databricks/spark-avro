@@ -467,6 +467,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       val avroDir = tempDir + "/avro"
       cityDataFrame.write.avro(avroDir)
+      assert(testSchema == spark.read.avro(avroDir).schema)
       assert(spark.read.avro(avroDir).collect().length == 3)
 
       // TimesStamps are converted to longs
