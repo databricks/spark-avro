@@ -924,6 +924,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         .namespace("com.databricks.spark.avro")
         .fields()
         .requiredString("field1")
+        .name("enumVal").`type`().enumeration("letters").symbols("a", "b", "c").enumDefault("a")
+        .name("fixedVal").`type`().fixed("MD5").size(16).fixedDefault(ByteBuffer.allocate(16))
         .endRecord()
 
     implicit val enc = AvroEncoder.of[GenericData.Record](schema)

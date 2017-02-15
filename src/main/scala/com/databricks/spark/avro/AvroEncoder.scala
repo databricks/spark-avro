@@ -408,7 +408,13 @@ private object AvroTypeInference {
         if (fixedClass == classOf[GenericData.Fixed]) {
           NewInstance(
             fixedClass,
-            Literal.fromObject(avroSchema, ObjectType(classOf[Schema])) ::
+            Invoke(
+              Literal.fromObject(
+                new SerializableSchema(avroSchema),
+                ObjectType(classOf[SerializableSchema])),
+              "value",
+              ObjectType(classOf[Schema]),
+              Nil) ::
               getPath ::
               Nil,
             ObjectType(fixedClass))
@@ -428,7 +434,13 @@ private object AvroTypeInference {
         if (enumClass == classOf[GenericData.EnumSymbol]) {
           NewInstance(
             enumClass,
-            Literal.fromObject(avroSchema, ObjectType(classOf[Schema])) ::
+            Invoke(
+              Literal.fromObject(
+                new SerializableSchema(avroSchema),
+                ObjectType(classOf[SerializableSchema])),
+              "value",
+              ObjectType(classOf[Schema]),
+              Nil) ::
               Invoke(getPath, "toString", ObjectType(classOf[String])) ::
               Nil,
             ObjectType(enumClass))
