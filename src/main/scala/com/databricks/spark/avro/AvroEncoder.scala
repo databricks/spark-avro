@@ -98,7 +98,7 @@ private[avro] object ObjectType {
   }
 }
 
-case class LambdaVariable(
+private[avro] case class LambdaVariable(
     value: String,
     isNull: String,
     dataType: DataType,
@@ -110,7 +110,7 @@ case class LambdaVariable(
   }
 }
 
-object ExternalMapToCatalyst {
+private[avro] object ExternalMapToCatalyst {
   private val curId = new java.util.concurrent.atomic.AtomicInteger()
 
   def apply(
@@ -138,7 +138,7 @@ object ExternalMapToCatalyst {
   }
 }
 
-case class ExternalMapToCatalyst private(
+private[avro] case class ExternalMapToCatalyst private(
                                           key: String,
                                           keyType: DataType,
                                           keyConverter: Expression,
@@ -517,7 +517,13 @@ private object AvroTypeInference {
         val newInstance = if (recordClass == classOf[GenericData.Record]) {
           NewInstance(
             recordClass,
-            Literal.fromObject(avroSchema, ObjectType(classOf[Schema])) :: Nil,
+            Invoke(
+              Literal.fromObject(
+                new SerializableSchema(avroSchema),
+                ObjectType(classOf[SerializableSchema])),
+              "value",
+              ObjectType(classOf[Schema]),
+              Nil) :: Nil,
             ObjectType(recordClass))
         } else {
           NewInstance(

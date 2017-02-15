@@ -38,6 +38,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs
 import org.apache.hadoop.fs.Path
 import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.types._
@@ -91,7 +92,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("request no fields") {
     val df = spark.read.avro(episodesFile)
-    df.registerTempTable("avro_table")
+    df.createOrReplaceTempView("avro_table")
     assert(spark.sql("select count(*) from avro_table").collect().head === Row(8))
   }
 
@@ -911,5 +912,33 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
     val ds = rdd.toDS()
     assert(ds.count() == 1)
+  }
+
+  test("create Dataset from GenericRecord") {
+    val sparkSession = spark
+    import sparkSession.implicits._
+
+    val schema: Schema =
+      SchemaBuilder
+        .record("GenericRecordTest")
+        .namespace("com.databricks.spark.avro")
+        .fields()
+        .requiredString("field1")
+        .endRecord()
+
+    implicit val enc = AvroEncoder.of[GenericData.Record](schema)
+
+    val genericRecords = (1 to 10) map { i =>
+      new GenericRecordBuilder(schema)
+        .set("field1", "field-" + i)
+        .build()
+    }
+
+    val rdd: RDD[GenericData.Record] = sparkSession.sparkContext
+      .parallelize(genericRecords)
+
+    val ds = rdd.toDS()
+
+    assert(ds.count() == genericRecords.size)
   }
 }
