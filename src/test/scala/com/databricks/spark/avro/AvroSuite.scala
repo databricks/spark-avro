@@ -515,7 +515,31 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(e2.length == 8)
   }
 
-  test("support user provided avro schema") {
+  test("support user provided avro schema during writes") {
+    val avroSchema =
+      """
+        |{
+        |  "type" : "record",
+        |  "name" : "test_schema",
+        |  "fields" : [{
+        |    "name" : "my_custom_field_name",
+        |    "type" : "string",
+        |    "doc"  : "my doc"
+        |  }]
+        |}
+      """.stripMargin
+    val strings = spark.createDataFrame(Seq(("Hello", "World")))
+    assert(strings.schema.fields.length == 2)
+    TestUtils.withTempDir { tempDir =>
+      val savePath = s"$tempDir/save"
+      strings.write.option(DefaultSource.AvroSchema, avroSchema).avro(savePath)
+      val readDF = spark.read.avro(savePath)
+      assert(readDF.schema.fields === Seq(StructField("my_custom_field_name", StringType)))
+      assert(readDF.collect() === Seq(Row("Hello")))
+    }
+  }
+
+  test("support user provided avro schema during reads") {
     val avroSchema =
       """
         |{
@@ -533,7 +557,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(result.sameElements(expected))
   }
 
-  test("support user provided avro schema with defaults for missing fields") {
+  test("support user provided avro schema during reads with defaults for missing fields") {
     val avroSchema =
       """
         |{
