@@ -19,30 +19,25 @@ package com.databricks.spark.avro
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.file.Files
-import java.sql.Timestamp
-import java.util.UUID
+import java.sql.{Date, Timestamp}
+import java.util.{TimeZone, UUID}
 
+import org.apache.avro.Schema.{Field, Type}
+import org.apache.avro.{Schema, SchemaBuilder}
+import org.apache.avro.file.DataFileWriter
 import org.apache.spark.SparkConf
 
 import scala.collection.JavaConversions._
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
-import org.apache.avro.Schema
-import org.apache.avro.Schema.{Field, Parser, Type}
-import org.apache.avro.SchemaBuilder
-import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord, GenericRecordBuilder}
-import org.apache.avro.io.{DecoderFactory, JsonDecoder}
-import org.apache.avro.specific.{SpecificData, SpecificDatumReader}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs
 import org.apache.hadoop.fs.Path
-import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
@@ -309,6 +304,26 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
       assert(spark.read.avro(dir.toString).count == rdd.count)
+    }
+  }
+
+  test("Date field type") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("float", FloatType, true),
+        StructField("date", DateType, true)
+      ))
+      TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+      val rdd = spark.sparkContext.parallelize(Seq(
+        Row(1f, null),
+        Row(2f, new Date(1451948400000L)),
+        Row(3f, new Date(1460066400500L))
+      ))
+      val df = spark.createDataFrame(rdd, schema)
+      df.write.avro(dir.toString)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).select("date").collect().map(_(0)).toSet ==
+        Array(null, 1451865600000L, 1459987200000L).toSet)
     }
   }
 
