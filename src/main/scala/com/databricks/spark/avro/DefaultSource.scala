@@ -61,24 +61,28 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       files: Seq[FileStatus]): Option[StructType] = {
     val conf = spark.sparkContext.hadoopConfiguration
 
-    // Schema evolution is not supported yet. Here we only pick a single random sample file to
+    // Schema evolution is not supported yet. Here we only pick the first file sorted by path to
     // figure out the schema of the whole dataset.
-    val sampleFile = if (conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)) {
-      files.find(_.getPath.getName.endsWith(".avro")).getOrElse {
-        throw new FileNotFoundException(
-          "No Avro files found. Hadoop option \"avro.mapred.ignore.inputs.without.extension\" is " +
-            "set to true. Do all input files have \".avro\" extension?"
-        )
-      }
+    def sampleFilePath = if (conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)) {
+      files.iterator.map(_.getPath).filter(_.getName.endsWith(".avro"))
+        .reduceOption{ (p1, p2) => if (p1.compareTo(p2) <= 0) p1 else p2 }
+        .getOrElse {
+          throw new FileNotFoundException(
+            "No Avro files found. Hadoop option \"avro.mapred.ignore.inputs.without.extension\" " +
+              "is set to true. Do all input files have \".avro\" extension?"
+          )
+        }
     } else {
-      files.headOption.getOrElse {
-        throw new FileNotFoundException("No Avro files found.")
-      }
+      files.iterator.map(_.getPath)
+        .reduceOption{ (p1, p2) => if (p1.compareTo(p2) <= 0) p1 else p2 }
+        .getOrElse{
+          throw new FileNotFoundException("No Avro files found.")
+        }
     }
 
     // User can specify an optional avro json schema.
     val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse).getOrElse {
-      val in = new FsInput(sampleFile.getPath, conf)
+      val in = new FsInput(sampleFilePath, conf)
       try {
         val reader = DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
         try {
