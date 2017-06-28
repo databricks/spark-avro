@@ -14,31 +14,29 @@
  * limitations under the License.
  */
 
-package com.databricks.spark.avro
+package org.apache.spark.avro
 
 import java.io.{IOException, OutputStream}
 import java.nio.ByteBuffer
-import java.sql.Timestamp
-import java.sql.Date
+import java.sql.{Date, Timestamp}
 import java.util.HashMap
-
-import org.apache.hadoop.fs.Path
-import scala.collection.immutable.Map
 
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
-import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
+import org.apache.avro.{Schema, SchemaBuilder}
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
-
+import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types._
 
+import scala.collection.immutable.Map
+
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
-private[avro] class AvroOutputWriter(
+class AvroOutputWriter(
     path: String,
     context: TaskAttemptContext,
     schema: StructType,
@@ -87,8 +85,8 @@ private[avro] class AvroOutputWriter(
         case bytes: Array[Byte] => ByteBuffer.wrap(bytes)
       }
       case ByteType | ShortType | IntegerType | LongType |
-           FloatType | DoubleType | StringType | BooleanType => identity
-      case _: DecimalType => (item: Any) => if (item == null) null else item.toString
+           FloatType | DoubleType | BooleanType => identity
+      case _: DecimalType | StringType => (item: Any) => if (item == null) null else item.toString
       case TimestampType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[Timestamp].getTime
       case DateType => (item: Any) =>
@@ -145,6 +143,7 @@ private[avro] class AvroOutputWriter(
             record
           }
         }
+      case t: UserDefinedType[_] => createConverterToAvro(t.sqlType, structName, recordNamespace)
     }
   }
 }

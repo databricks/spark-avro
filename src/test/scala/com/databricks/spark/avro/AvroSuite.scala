@@ -33,7 +33,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
-import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
+import org.apache.spark.avro.SchemaConverters.IncompatibleSchemaException
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
