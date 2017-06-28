@@ -345,7 +345,12 @@ object SchemaConverters {
           schemaBuilder.record(structName).namespace(recordNamespace),
           recordNamespace)
 
-      case t: UserDefinedType[_] => convertTypeToAvro(t.sqlType, schemaBuilder, structName, recordNamespace)
+      case t: UserDefinedType[_] => convertTypeToAvro(
+        t.sqlType,
+        schemaBuilder,
+        structName,
+        recordNamespace
+      )
 
       case other => throw new IncompatibleSchemaException(s"Unexpected type $dataType.")
     }
