@@ -391,7 +391,12 @@ object SchemaConverters {
           newFieldBuilder.record(structName).namespace(recordNamespace),
           recordNamespace)
 
-      case t: UserDefinedType[_] => convertFieldTypeToAvro(t.sqlType, newFieldBuilder, structName, recordNamespace)
+      case t: UserDefinedType[_] => convertFieldTypeToAvro(
+        t.sqlType,
+        newFieldBuilder,
+        structName,
+        recordNamespace
+      )
 
       case other => throw new IncompatibleSchemaException(s"Unexpected type $dataType.")
     }
