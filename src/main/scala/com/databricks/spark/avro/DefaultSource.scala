@@ -21,7 +21,6 @@ import java.net.URI
 import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
-
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
@@ -34,8 +33,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
 import org.slf4j.LoggerFactory
-
 import org.apache.spark.TaskContext
+import org.apache.spark.avro.SchemaConverters
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
