@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.1.0"
+sparkVersion := "2.2.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -16,7 +16,7 @@ testSparkVersion := sys.props.getOrElse("spark.testVersion", sparkVersion.value)
 
 val testHadoopVersion = settingKey[String]("The version of Hadoop to test against.")
 
-testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
+testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.6.5")
 
 val testAvroVersion = settingKey[String]("The version of Avro to test against.")
 
@@ -49,7 +49,8 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
   "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
   "org.apache.avro" % "avro" % testAvroVersion.value % "test" exclude("org.mortbay.jetty", "servlet-api"),
-  "org.apache.avro" % "avro-mapred" % testAvroMapredVersion.value  % "test" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api")
+  "org.apache.avro" % "avro-mapred" % testAvroMapredVersion.value  % "test" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api"),
+  "com.google.guava" % "guava" % "14.0.1" % "test" force()
 )
 
 // Display full-length stacktraces from ScalaTest:
