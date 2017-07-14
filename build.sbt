@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.2.0-SNAPSHOT"
+sparkVersion := "2.2.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -33,8 +33,6 @@ spIncludeMaven := true
 spIgnoreProvided := true
 
 sparkComponents := Seq("sql")
-
-resolvers += "asf snapshots" at "http://repository.apache.org/snapshots/"
 
 libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.5",
