@@ -10,14 +10,17 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
 documentation on earlier versions of this library, see the links below.
 
-This library has different versions for Spark 1.2, 1.3, 1.4+, and 2.0:
+This library has different versions for Spark 1.2, 1.3, 1.4+, 2.0 - 2.1, and 2.2:
 
 | Spark Version | Compatible version of Avro Data Source for Spark |
 | ------------- | ------------------------------------------------ |
 | `1.2`         | `0.2.0`                                          |
 | `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
 | `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
-| `2.0`         | `3.1.0` (this version)                           |
+| `2.0 - 2.1`         | `3.2.0` (latest released version)                           |
+| `2.2`         | `3.3.0` (unreleased)                           |
+
+Version 3.3.0 can be used with spark 2.0 & 2.1, but *only if* you are using JDK 8.  (Spark 2.2 requires JDK 8 in any case.)
 
 ## Linking
 

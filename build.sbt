@@ -60,7 +60,7 @@ testOptions in Test += Tests.Argument("-oF")
 
 scalacOptions ++= Seq("-target:jvm-1.7")
 
-javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
+javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
 
 coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
