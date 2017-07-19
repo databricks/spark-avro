@@ -8,7 +8,7 @@ crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.2.0"
+sparkVersion := "2.1.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -60,7 +60,7 @@ testOptions in Test += Tests.Argument("-oF")
 
 scalacOptions ++= Seq("-target:jvm-1.7")
 
-javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
+javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
 
 coverageHighlighting := {
   if (scalaBinaryVersion.value == "2.10") false
