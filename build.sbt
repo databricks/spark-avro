@@ -16,7 +16,7 @@ testSparkVersion := sys.props.getOrElse("spark.testVersion", sparkVersion.value)
 
 val testHadoopVersion = settingKey[String]("The version of Hadoop to test against.")
 
-testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.6.5")
+testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
 
 val testAvroVersion = settingKey[String]("The version of Avro to test against.")
 
