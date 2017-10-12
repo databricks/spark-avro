@@ -376,19 +376,33 @@ object SchemaConverters {
 
       case ArrayType(elementType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[ArrayType].containsNull)
-        val elementSchema = convertTypeToAvro(elementType, builder, structName, recordNamespace)
+        val elementSchema = convertTypeToAvro(
+          elementType,
+          builder,
+          structName,
+          elementType match {
+            case StructType(_) => s"$recordNamespace.$structName"
+            case _ => recordNamespace
+          })
         newFieldBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[MapType].valueContainsNull)
-        val valueSchema = convertTypeToAvro(valueType, builder, structName, recordNamespace)
+        val valueSchema = convertTypeToAvro(
+          valueType,
+          builder,
+          structName,
+          valueType match {
+            case StructType(_) => s"$recordNamespace.$structName"
+            case _ => recordNamespace
+          })
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          newFieldBuilder.record(structName).namespace(recordNamespace),
-          recordNamespace)
+          newFieldBuilder.record(structName).namespace(s"$recordNamespace.$structName"),
+          s"$recordNamespace.$structName")
 
       case other => throw new IncompatibleSchemaException(s"Unexpected type $dataType.")
     }
