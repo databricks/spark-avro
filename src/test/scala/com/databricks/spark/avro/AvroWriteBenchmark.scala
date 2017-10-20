@@ -21,11 +21,12 @@ import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConversions._
 import scala.util.Random
-
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
+
+import scala.math.BigDecimal.RoundingMode
 
 /**
  * This object runs a simple benchmark test to find out how long does it take to write a large
@@ -49,7 +50,8 @@ object AvroWriteBenchmark {
 
   private def generateRandomRow(): Row = {
     val rand = new Random()
-    Row(rand.nextString(defaultSize), rand.nextInt(), new Date(rand.nextLong()) ,rand.nextDouble(), rand.nextDouble(),
+    Row(rand.nextString(defaultSize), rand.nextInt(), new Date(rand.nextLong()) ,rand.nextDouble(),
+      BigDecimal(rand.nextDouble()).setScale(10,RoundingMode.HALF_UP),
       TestUtils.generateRandomArray(rand, defaultSize).toSeq,
       TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
   }
