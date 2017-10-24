@@ -51,7 +51,7 @@ object AvroWriteBenchmark {
   private def generateRandomRow(): Row = {
     val rand = new Random()
     Row(rand.nextString(defaultSize), rand.nextInt(), new Date(rand.nextLong()) ,rand.nextDouble(),
-      BigDecimal(rand.nextDouble()).setScale(10,RoundingMode.HALF_UP),
+      BigDecimal(rand.nextDouble()).setScale(10, RoundingMode.HALF_UP),
       TestUtils.generateRandomArray(rand, defaultSize).toSeq,
       TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
   }
