@@ -112,10 +112,17 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       dataSchema: StructType): OutputWriterFactory = {
     val recordName = options.getOrElse("recordName", "topLevelRecord")
     val recordNamespace = options.getOrElse("recordNamespace", "")
+    val forceAvroSchema = options.getOrElse("forceSchema", "")
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+    val outputAvroSchema = if (forceAvroSchema.contentEquals("")) {
+      SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+    } else {
+      val parser = new Schema.Parser()
+      parser.parse(forceAvroSchema)
+    }
 
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
+
     val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
     val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
     val COMPRESS_KEY = "mapred.output.compress"
@@ -142,7 +149,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         log.error(s"unsupported compression codec $unknown")
     }
 
-    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
+    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace, forceAvroSchema)
   }
 
   override def buildReader(

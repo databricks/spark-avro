@@ -34,9 +34,13 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
+  val messyFile = "src/test/resources/messy.avro"
+  val messySchemaFile = "src/test/resources/messy.avsc"
   val testFile = "src/test/resources/test.avro"
 
   private var spark: SparkSession = _
@@ -639,6 +643,85 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         .avro(tempSaveDir)
 
       assert(newDf.count == 8)
+    }
+  }
+
+  // Read an avro, write it with converted schema, read it, write it with original forceSchema
+  // Then, test that data does not change
+  test("test read original schema, write with converted schema, read, write with original schema") {
+    // Test if load works as expected
+    TestUtils.withTempDir { tempDir =>
+      // Let's imagine that
+      def getSomeSubRecords(df:Dataset[Row]): RDD[GenericRowWithSchema] = {
+        df.rdd.flatMap {
+          row => {
+            val topStruct = row.getAs[GenericRowWithSchema]("someRecordField")
+            if (topStruct != null){
+              val subStruct = topStruct.getAs[GenericRowWithSchema](
+                topStruct.fieldIndex("someSubRecordField")
+              )
+              subStruct.getSeq(subStruct.fieldIndex("someSubRecordsField"))
+            } else {
+              Array[GenericRowWithSchema]()
+            }
+          }
+        }
+      }
+
+      def getNotQuiteDeepEnoughRecords(df:Dataset[Row]): RDD[GenericRowWithSchema] = {
+        getSomeSubRecords(df).flatMap (
+          row => row.getSeq(row.fieldIndex("notQuiteDeepEnoughRecordsField"))
+        )
+      }
+
+      def getSumOfReallyDeepInts(df:Dataset[Row]): Long = {
+        getNotQuiteDeepEnoughRecords(df).flatMap {
+          row => {
+            val topLevel:Seq[GenericRowWithSchema] = row
+              .getSeq(row.fieldIndex("notQuiteDeepEnoughRecords"))
+            topLevel.map(sub => sub.getInt(sub.fieldIndex("someReallyDeepInt")))
+          }
+        }.reduce((x:Int,y:Int) => x + y)
+      }
+
+      val forceSchema = scala.io.Source
+        .fromFile("src/test/resources/messy.avsc")
+        .getLines()
+        .mkString("\n")
+
+      val df = spark.read.avro(messyFile)
+      assert(df.count == 10)
+
+      val tempSaveDir1 = s"$tempDir/save1/"
+      val tempSaveDir2 = s"$tempDir/save2/"
+
+      df.write.avro(tempSaveDir1)
+
+      val newDf = spark.read.avro(tempSaveDir1)
+      assert(newDf.count == 10)
+
+      // number of someSubRecords in dataset
+      val numSomeSubRecords1 = getSomeSubRecords(newDf).collect.length
+      val notQuiteDeepEnoughRecords1 = getNotQuiteDeepEnoughRecords(newDf).collect.length
+      val sumOfReallyDeepInts1 = getSumOfReallyDeepInts(newDf)
+      assert(numSomeSubRecords1 == 33)
+      assert(notQuiteDeepEnoughRecords1 == 375)
+      assert(sumOfReallyDeepInts1 == -367812589)
+
+      newDf.write
+        .option("forceSchema", forceSchema)
+        .avro(tempSaveDir2)
+
+      val newerDf = spark.read.avro(tempSaveDir2)
+      assert(newerDf.count == 10)
+
+      // number of someSubRecords in dataset
+      val numSomeSubRecords2 = getSomeSubRecords(newerDf).collect.length
+      val notQuiteDeepEnoughRecords2 = getNotQuiteDeepEnoughRecords(newDf).collect.length
+      val sumOfReallyDeepInts2 = getSumOfReallyDeepInts(newDf)
+      assert(numSomeSubRecords2 == 33)
+      assert(notQuiteDeepEnoughRecords2 == 375)
+      assert(sumOfReallyDeepInts2 == -367812589)
     }
   }
 

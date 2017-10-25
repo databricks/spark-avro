@@ -20,23 +20,28 @@ import java.io.{IOException, OutputStream}
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.sql.Date
+import java.util
 import java.util.HashMap
 
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import scala.collection.immutable.Map
-
 import org.apache.avro.generic.GenericData.Record
-import org.apache.avro.generic.GenericRecord
+import org.apache.avro.generic.{GenericData, GenericRecord, GenericRecordBuilder}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
-
+import org.apache.log4j.Logger
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types._
+
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
 private[avro] class AvroOutputWriter(
@@ -44,9 +49,20 @@ private[avro] class AvroOutputWriter(
     context: TaskAttemptContext,
     schema: StructType,
     recordName: String,
-    recordNamespace: String) extends OutputWriter {
+    recordNamespace: String,
+    forceSchema: String) extends OutputWriter  {
 
-  private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
+  private val logger = Logger.getLogger(this.getClass)
+
+  private val forceAvroSchema = if (forceSchema.contentEquals("")) {
+    None
+  } else {
+    Option(new Schema.Parser().parse(forceSchema))
+  }
+  private lazy val converter = createConverterToAvro(
+    schema, recordName, recordNamespace, forceAvroSchema
+  )
+
   // copy of the old conversion logic after api change in SPARK-19085
   private lazy val internalRowConverter =
     CatalystTypeConverters.createToScalaConverter(schema).asInstanceOf[InternalRow => Row]
@@ -83,6 +99,27 @@ private[avro] class AvroOutputWriter(
 
   override def close(): Unit = recordWriter.close(context)
 
+  private def resolveStructTypeToAvroUnion(schema:Schema, dataType:String): Schema = {
+    val allowedAvroTypes = dataType match {
+      case "boolean"  => List(Schema.Type.BOOLEAN)
+      case "integer"  => List(Schema.Type.INT)
+      case "long"     => List(Schema.Type.LONG)
+      case "float"    => List(Schema.Type.FLOAT)
+      case "double"   => List(Schema.Type.DOUBLE)
+      case "binary"   => List(Schema.Type.BYTES, Schema.Type.FIXED)
+      case "array"    => List(Schema.Type.ARRAY)
+      case "map"      => List(Schema.Type.MAP)
+      case "string"   => List(Schema.Type.STRING, Schema.Type.ENUM)
+      case "struct"   => List(Schema.Type.ARRAY, Schema.Type.RECORD)
+      case default    => {
+        throw new RuntimeException(
+          s"Cannot map SparkSQL type '$dataType' against Avro schema '$schema'"
+        )
+      }
+    }
+    schema.getTypes.find (allowedAvroTypes contains _.getType).get
+  }
+
   /**
    * This function constructs converter function for a given sparkSQL datatype. This is used in
    * writing Avro records out to disk
@@ -90,21 +127,51 @@ private[avro] class AvroOutputWriter(
   private def createConverterToAvro(
       dataType: DataType,
       structName: String,
-      recordNamespace: String): (Any) => Any = {
+      recordNamespace: String,
+      forceAvroSchema: Option[Schema]): (Any) => Any = {
     dataType match {
       case BinaryType => (item: Any) => item match {
         case null => null
-        case bytes: Array[Byte] => ByteBuffer.wrap(bytes)
+        case bytes: Array[Byte] => if (forceAvroSchema.isDefined) {
+          // Handle mapping from binary => bytes|fixed w/ forceSchema
+          forceAvroSchema.get.getType match {
+            case Schema.Type.BYTES => ByteBuffer.wrap(bytes)
+            case Schema.Type.FIXED => new GenericData.Fixed(
+              forceAvroSchema.get, bytes
+            )
+            case default => bytes
+          }
+        } else {
+          ByteBuffer.wrap(bytes)
+        }
       }
       case ByteType | ShortType | IntegerType | LongType |
-           FloatType | DoubleType | StringType | BooleanType => identity
+           FloatType | DoubleType | BooleanType => identity
+      case StringType => (item: Any) => if (forceAvroSchema.isDefined) {
+        // Handle case when forcing schema where this string should map
+        // to an ENUM
+        forceAvroSchema.get.getType match {
+          case Schema.Type.ENUM => new GenericData.EnumSymbol(
+            forceAvroSchema.get, item.toString
+          )
+          case default => item
+        }
+      } else {
+        item
+      }
       case _: DecimalType => (item: Any) => if (item == null) null else item.toString
       case TimestampType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[Timestamp].getTime
       case DateType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[Date].getTime
       case ArrayType(elementType, _) =>
-        val elementConverter = createConverterToAvro(elementType, structName, recordNamespace)
+        val elementConverter = if (forceAvroSchema.isDefined) {
+          createConverterToAvro(elementType, structName,
+            recordNamespace, Option(forceAvroSchema.get.getElementType))
+        } else {
+          createConverterToAvro(elementType, structName,
+            recordNamespace, forceAvroSchema)
+        }
         (item: Any) => {
           if (item == null) {
             null
@@ -117,14 +184,20 @@ private[avro] class AvroOutputWriter(
               targetArray(idx) = elementConverter(sourceArray(idx))
               idx += 1
             }
-            targetArray
+            targetArray.toSeq.asJava
           }
         }
       case MapType(StringType, valueType, _) =>
-        val valueConverter = createConverterToAvro(valueType, structName, recordNamespace)
+        val valueConverter = if (forceAvroSchema.isDefined) {
+          createConverterToAvro(valueType, structName,
+            recordNamespace, Option(forceAvroSchema.get.getValueType))
+        } else {
+          createConverterToAvro(valueType, structName,
+            recordNamespace, forceAvroSchema)
+        }
         (item: Any) => {
           if (item == null) {
-            null
+            if (forceAvroSchema.isDefined) new HashMap[String, Any]() else null
           } else {
             val javaMap = new HashMap[String, Any]()
             item.asInstanceOf[Map[String, Any]].foreach { case (key, value) =>
@@ -135,10 +208,36 @@ private[avro] class AvroOutputWriter(
         }
       case structType: StructType =>
         val builder = SchemaBuilder.record(structName).namespace(recordNamespace)
-        val schema: Schema = SchemaConverters.convertStructToAvro(
-          structType, builder, recordNamespace)
-        val fieldConverters = structType.fields.map(field =>
-          createConverterToAvro(field.dataType, field.name, recordNamespace))
+        val schema: Schema = if (!forceAvroSchema.isDefined) {
+          SchemaConverters.convertStructToAvro(
+            structType, builder, recordNamespace)
+        } else {
+          if (forceAvroSchema.get.getType == Schema.Type.ARRAY) {
+            forceAvroSchema.get.getElementType
+          } else {
+            forceAvroSchema.get
+          }
+        }
+
+        val fieldConverters = structType.fields.map (
+          field => {
+            val fieldConvertSchema = if (forceAvroSchema.isDefined) {
+              val thisFieldSchema = schema.getField(field.name).schema
+              Option(
+                thisFieldSchema.getType match {
+                  case Schema.Type.UNION => {
+                    resolveStructTypeToAvroUnion(thisFieldSchema, field.dataType.typeName)
+                  }
+                  case default => thisFieldSchema
+                }
+              )
+            } else {
+              forceAvroSchema
+            }
+            createConverterToAvro(field.dataType, field.name, recordNamespace, fieldConvertSchema)
+          }
+        )
+
         (item: Any) => {
           if (item == null) {
             null
@@ -150,9 +249,27 @@ private[avro] class AvroOutputWriter(
 
             while (convertersIterator.hasNext) {
               val converter = convertersIterator.next()
-              record.put(fieldNamesIterator.next(), converter(rowIterator.next()))
+              val fieldValue = rowIterator.next()
+              val fieldName = fieldNamesIterator.next()
+              try {
+                record.put(fieldName, converter(fieldValue))
+              } catch {
+                case ex:NullPointerException => {
+                  // This can happen with forceAvroSchema conversion
+                  if (forceAvroSchema.isDefined) {
+                    logger.debug(s"Trying to write field $fieldName which may be null? $fieldValue")
+                  } else {
+                    // Keep previous behavior when forceAvroSchema is not used
+                    throw ex
+                  }
+                }
+              }
             }
-            record
+            if(forceAvroSchema.isDefined) {
+              new GenericRecordBuilder(record).build()
+            } else {
+              record
+            }
           }
         }
     }
