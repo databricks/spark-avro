@@ -17,7 +17,7 @@ This library has different versions for Spark 1.2, 1.3, 1.4+, 2.0 - 2.1, and 2.2
 | `1.2`         | `0.2.0`                                          |
 | `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
 | `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
-| `2.0 - 2.1`   | `3.2.0` (https://github.com/databricks/spark-avro/tree/v3.2.0)  |
+| `2.0 - 2.1`   | [`3.2.0`](https://github.com/databricks/spark-avro/tree/v3.2.0) |
 | `2.2`         | `4.0.0` (this version)                           |
 
 ## Linking
