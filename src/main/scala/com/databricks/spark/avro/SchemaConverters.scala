@@ -380,7 +380,7 @@ object SchemaConverters {
           elementType,
           builder,
           structName,
-          getNewRecordNameSpace(elementType, recordNamespace, structName)
+          getNewRecordNamespace(elementType, recordNamespace, structName)
           )
         newFieldBuilder.array().items(elementSchema)
 
@@ -390,7 +390,7 @@ object SchemaConverters {
           valueType,
           builder,
           structName,
-          getNewRecordNameSpace(valueType, recordNamespace, structName)
+          getNewRecordNamespace(valueType, recordNamespace, structName)
           )
         newFieldBuilder.map().values(valueSchema)
 
@@ -409,7 +409,7 @@ object SchemaConverters {
     * If the data type is a StructType it returns the current namespace concatenated
     * with the element name, otherwise it returns the current namespace as it is.
     */
-  private[avro] def getNewRecordNameSpace(
+  private[avro] def getNewRecordNamespace(
       elementDataType: DataType,
       currentRecordNamespace: String,
       elementName: String): String = {
