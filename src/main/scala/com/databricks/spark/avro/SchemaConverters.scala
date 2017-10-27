@@ -380,10 +380,8 @@ object SchemaConverters {
           elementType,
           builder,
           structName,
-          elementType match {
-            case StructType(_) => s"$recordNamespace.$structName"
-            case _ => recordNamespace
-          })
+          getNewRecordNameSpace(elementType, recordNamespace, structName)
+          )
         newFieldBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
@@ -392,10 +390,8 @@ object SchemaConverters {
           valueType,
           builder,
           structName,
-          valueType match {
-            case StructType(_) => s"$recordNamespace.$structName"
-            case _ => recordNamespace
-          })
+          getNewRecordNameSpace(valueType, recordNamespace, structName)
+          )
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>
@@ -405,6 +401,22 @@ object SchemaConverters {
           s"$recordNamespace.$structName")
 
       case other => throw new IncompatibleSchemaException(s"Unexpected type $dataType.")
+    }
+  }
+
+  /**
+    * Returns a new namespace depending on the data type of the element.
+    * If the data type is a StructType it returns the current namespace concatenated
+    * with the element name, otherwise it returns the current namespace as it is.
+    */
+  private[avro] def getNewRecordNameSpace(
+      elementDataType: DataType,
+      currentRecordNamespace: String,
+      elementName: String): String = {
+
+    elementDataType match {
+      case StructType(_) => s"$currentRecordNamespace.$elementName"
+      case _ => currentRecordNamespace
     }
   }
 
