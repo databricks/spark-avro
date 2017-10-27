@@ -22,7 +22,7 @@ This library has different versions for Spark 1.2, 1.3, 1.4+, 2.0 - 2.1, and 2.2
 
 ## Linking
 
-This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed below.
+This library is cross-published for Scala 2.11, so 2.10 users should replace 2.11 with 2.10 in the commands listed below.
 
 You can link against this library in your program at the following coordinates:
 
