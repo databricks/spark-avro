@@ -22,6 +22,10 @@ import java.sql.Timestamp
 import java.sql.Date
 import java.util.HashMap
 
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+
+import scala.collection.immutable.Map
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
 import org.apache.avro.mapred.AvroKey
@@ -47,6 +51,17 @@ private[avro] class AvroOutputWriter(
 
   private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
 
+  // copy of the old conversion logic after api change in SPARK-19085
+  //
+  // Need to use reflection for Spark versions < 2.2.0
+  //
+  private lazy val internalRowConverter = {
+    val clazz = Class.forName("org.apache.spark.sql.catalyst.CatalystTypeConverters$")
+    val m = clazz.getDeclaredMethod("createToScalaConverter", classOf[DataType])
+    val obj = clazz.getField("MODULE$").get(null)
+    m.invoke(obj, schema).asInstanceOf[InternalRow => Row]
+  }
+
   /**
    * Overrides the couple of methods responsible for generating the output streams / files so
    * that the data can be correctly partitioned
@@ -66,7 +81,13 @@ private[avro] class AvroOutputWriter(
 
     }.getRecordWriter(context)
 
-  override def write(row: Row): Unit = {
+  // this is the new api in spark 2.2+
+  def write(row: InternalRow): Unit = {
+    write(internalRowConverter(row))
+  }
+
+  // api in spark 2.0 - 2.1
+  def write(row: Row): Unit = {
     val key = new AvroKey(converter(row).asInstanceOf[GenericRecord])
     recordWriter.write(key, NullWritable.get())
   }

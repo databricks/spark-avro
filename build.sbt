@@ -47,10 +47,13 @@ libraryDependencies ++= Seq(
   "commons-io" % "commons-io" % "2.4" % "test"
 )
 
+// curator leads to conflicting guava dependencies
+val curatorExclusion = ExclusionRule(organization = "org.apache.curator")
+
 libraryDependencies ++= Seq(
-  "org.apache.hadoop" % "hadoop-client" % testHadoopVersion.value % "test",
-  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
-  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client"),
+  "org.apache.hadoop" % "hadoop-client" % testHadoopVersion.value % "test" excludeAll(curatorExclusion),
+  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion),
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion),
   "org.apache.avro" % "avro" % testAvroVersion.value % "test" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % testAvroMapredVersion.value  % "test" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api")
 )
