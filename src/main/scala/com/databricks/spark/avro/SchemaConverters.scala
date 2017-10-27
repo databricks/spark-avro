@@ -380,8 +380,7 @@ object SchemaConverters {
           elementType,
           builder,
           structName,
-          getNewRecordNamespace(elementType, recordNamespace, structName)
-          )
+          getNewRecordNamespace(elementType, recordNamespace, structName))
         newFieldBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
@@ -390,8 +389,7 @@ object SchemaConverters {
           valueType,
           builder,
           structName,
-          getNewRecordNamespace(valueType, recordNamespace, structName)
-          )
+          getNewRecordNamespace(valueType, recordNamespace, structName))
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>

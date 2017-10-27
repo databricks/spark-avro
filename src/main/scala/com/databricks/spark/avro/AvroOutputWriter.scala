@@ -107,8 +107,7 @@ private[avro] class AvroOutputWriter(
         val elementConverter = createConverterToAvro(
           elementType,
           structName,
-          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName)
-          )
+          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName))
         (item: Any) => {
           if (item == null) {
             null
@@ -128,8 +127,7 @@ private[avro] class AvroOutputWriter(
         val valueConverter = createConverterToAvro(
           valueType,
           structName,
-          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName)
-          )
+          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName))
         (item: Any) => {
           if (item == null) {
             null
@@ -149,9 +147,7 @@ private[avro] class AvroOutputWriter(
           createConverterToAvro(
             field.dataType,
             field.name,
-            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name)
-            )
-        )
+            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name)))
         (item: Any) => {
           if (item == null) {
             null
