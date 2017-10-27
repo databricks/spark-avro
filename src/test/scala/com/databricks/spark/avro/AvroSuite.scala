@@ -707,7 +707,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       // Read avro file saved on the last step
       val readDf = spark.read.avro(outputFolder)
       // Check if the written DataFrame is equals than read DataFrame
-      assert(readDf.collect() sameElements writeDf.collect())
+      assert(readDf.collect().sameElements(writeDf.collect()))
     }
   }
 
@@ -728,7 +728,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       // Read avro file saved on the last step
       val readDf = spark.read.avro(outputFolder)
       // Check if the written DataFrame is equals than read DataFrame
-      assert(readDf.collect() sameElements writeDf.collect())
+      assert(readDf.collect().sameElements(writeDf.collect()))
     }
   }
 
@@ -749,7 +749,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       // Read avro file saved on the last step
       val readDf = spark.read.avro(outputFolder)
       // Check if the written DataFrame is equals than read DataFrame
-      assert(readDf.collect() sameElements writeDf.collect())
+      assert(readDf.collect().sameElements(writeDf.collect()))
     }
   }
 }
