@@ -115,7 +115,10 @@ private[avro] class AvroOutputWriter(
       case DateType => (item: Any) =>
         if (item == null) null else item.asInstanceOf[Date].getTime
       case ArrayType(elementType, _) =>
-        val elementConverter = createConverterToAvro(elementType, structName, recordNamespace)
+        val elementConverter = createConverterToAvro(
+          elementType,
+          structName,
+          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName))
         (item: Any) => {
           if (item == null) {
             null
@@ -132,7 +135,10 @@ private[avro] class AvroOutputWriter(
           }
         }
       case MapType(StringType, valueType, _) =>
-        val valueConverter = createConverterToAvro(valueType, structName, recordNamespace)
+        val valueConverter = createConverterToAvro(
+          valueType,
+          structName,
+          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName))
         (item: Any) => {
           if (item == null) {
             null
@@ -149,7 +155,10 @@ private[avro] class AvroOutputWriter(
         val schema: Schema = SchemaConverters.convertStructToAvro(
           structType, builder, recordNamespace)
         val fieldConverters = structType.fields.map(field =>
-          createConverterToAvro(field.dataType, field.name, recordNamespace))
+          createConverterToAvro(
+            field.dataType,
+            field.name,
+            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name)))
         (item: Any) => {
           if (item == null) {
             null

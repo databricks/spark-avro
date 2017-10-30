@@ -706,6 +706,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+<<<<<<< HEAD
   test("generic record converts to row and back") {
     val nested =
       SchemaBuilder.record("simple_record").fields()
@@ -957,5 +958,66 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     val ds = rdd.toDS()
 
     assert(ds.count() == genericRecords.size)
+  }
+
+  case class NestedBottom(id: Int, data: String)
+
+  case class NestedMiddle(id: Int, data: NestedBottom)
+
+  case class NestedTop(id: Int, data: NestedMiddle)
+
+  test("saving avro that has nested records with the same name") {
+    TestUtils.withTempDir { tempDir =>
+      // Save avro file on output folder path
+      val writeDf = spark.createDataFrame(List(NestedTop(1, NestedMiddle(2, NestedBottom(3, "1")))))
+      val outputFolder = s"$tempDir/duplicate_names/"
+      writeDf.write.avro(outputFolder)
+      // Read avro file saved on the last step
+      val readDf = spark.read.avro(outputFolder)
+      // Check if the written DataFrame is equals than read DataFrame
+      assert(readDf.collect().sameElements(writeDf.collect()))
+    }
+  }
+
+  case class NestedMiddleArray(id: Int, data: Array[NestedBottom])
+
+  case class NestedTopArray(id: Int, data: NestedMiddleArray)
+
+  test("saving avro that has nested records with the same name inside an array") {
+    TestUtils.withTempDir { tempDir =>
+      // Save avro file on output folder path
+      val writeDf = spark.createDataFrame(
+        List(NestedTopArray(1, NestedMiddleArray(2, Array(
+          NestedBottom(3, "1"), NestedBottom(4, "2")
+        ))))
+      )
+      val outputFolder = s"$tempDir/duplicate_names_array/"
+      writeDf.write.avro(outputFolder)
+      // Read avro file saved on the last step
+      val readDf = spark.read.avro(outputFolder)
+      // Check if the written DataFrame is equals than read DataFrame
+      assert(readDf.collect().sameElements(writeDf.collect()))
+    }
+  }
+
+  case class NestedMiddleMap(id: Int, data: Map[String, NestedBottom])
+
+  case class NestedTopMap(id: Int, data: NestedMiddleMap)
+
+  test("saving avro that has nested records with the same name inside a map") {
+    TestUtils.withTempDir { tempDir =>
+      // Save avro file on output folder path
+      val writeDf = spark.createDataFrame(
+        List(NestedTopMap(1, NestedMiddleMap(2, Map(
+          "1" -> NestedBottom(3, "1"), "2" -> NestedBottom(4, "2")
+        ))))
+      )
+      val outputFolder = s"$tempDir/duplicate_names_map/"
+      writeDf.write.avro(outputFolder)
+      // Read avro file saved on the last step
+      val readDf = spark.read.avro(outputFolder)
+      // Check if the written DataFrame is equals than read DataFrame
+      assert(readDf.collect().sameElements(writeDf.collect()))
+    }
   }
 }

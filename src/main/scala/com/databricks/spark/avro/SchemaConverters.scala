@@ -386,21 +386,45 @@ object SchemaConverters {
 
       case ArrayType(elementType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[ArrayType].containsNull)
-        val elementSchema = convertTypeToAvro(elementType, builder, structName, recordNamespace)
+        val elementSchema = convertTypeToAvro(
+          elementType,
+          builder,
+          structName,
+          getNewRecordNamespace(elementType, recordNamespace, structName))
         newFieldBuilder.array().items(elementSchema)
 
       case MapType(StringType, valueType, _) =>
         val builder = getSchemaBuilder(dataType.asInstanceOf[MapType].valueContainsNull)
-        val valueSchema = convertTypeToAvro(valueType, builder, structName, recordNamespace)
+        val valueSchema = convertTypeToAvro(
+          valueType,
+          builder,
+          structName,
+          getNewRecordNamespace(valueType, recordNamespace, structName))
         newFieldBuilder.map().values(valueSchema)
 
       case structType: StructType =>
         convertStructToAvro(
           structType,
-          newFieldBuilder.record(structName).namespace(recordNamespace),
-          recordNamespace)
+          newFieldBuilder.record(structName).namespace(s"$recordNamespace.$structName"),
+          s"$recordNamespace.$structName")
 
       case other => throw new IncompatibleSchemaException(s"Unexpected type $dataType.")
+    }
+  }
+
+  /**
+    * Returns a new namespace depending on the data type of the element.
+    * If the data type is a StructType it returns the current namespace concatenated
+    * with the element name, otherwise it returns the current namespace as it is.
+    */
+  private[avro] def getNewRecordNamespace(
+      elementDataType: DataType,
+      currentRecordNamespace: String,
+      elementName: String): String = {
+
+    elementDataType match {
+      case StructType(_) => s"$currentRecordNamespace.$elementName"
+      case _ => currentRecordNamespace
     }
   }
 

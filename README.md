@@ -7,7 +7,7 @@ A library for reading and writing Avro data from [Spark SQL](http://spark.apache
 
 ## Requirements
 
-This documentation is for version 3.1.0 of this library, which supports Spark 2.0+. For
+This documentation is for version 4.0.0 of this library, which supports Spark 2.2. For
 documentation on earlier versions of this library, see the links below.
 
 This library has different versions for Spark 1.2, 1.3, 1.4+, 2.0 - 2.1, and 2.2:
@@ -17,19 +17,19 @@ This library has different versions for Spark 1.2, 1.3, 1.4+, 2.0 - 2.1, and 2.2
 | `1.2`         | `0.2.0`                                          |
 | `1.3`         | [`1.0.0`](https://github.com/databricks/spark-avro/tree/v1.0.0) |
 | `1.4+`        | [`2.0.1`](https://github.com/databricks/spark-avro/tree/v2.0.1) |
-| `2.0 - 2.1`         | `3.2.0` (latest released version)                           |
-| `2.2`         | `3.3.0` (unreleased)                           |
+| `2.0 - 2.1`   | `3.2.0` (https://github.com/databricks/spark-avro/tree/v3.2.0)  |
+| `2.2`         | `4.0.0` (this version)                           |
 
 ## Linking
 
-This library is cross-published for Scala 2.11, so 2.11 users should replace 2.10 with 2.11 in the commands listed below.
+This library is cross-published for Scala 2.11, so 2.10 users should replace 2.11 with 2.10 in the commands listed below.
 
 You can link against this library in your program at the following coordinates:
 
 **Using SBT:**
 
 ```
-libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
+libraryDependencies += "com.databricks" %% "spark-avro" % "4.0.0"
 ```
 
 **Using Maven:**
@@ -37,8 +37,8 @@ libraryDependencies += "com.databricks" %% "spark-avro" % "3.1.0"
 ```xml
 <dependency>
     <groupId>com.databricks</groupId>
-    <artifactId>spark-avro_2.10</artifactId>
-    <version>3.1.0</version>
+    <artifactId>spark-avro_2.11</artifactId>
+    <version>4.0.0</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ This library can also be added to Spark jobs launched through `spark-shell` or `
 For example, to include it when starting the spark shell:
 
 ```
-$ bin/spark-shell --packages com.databricks:spark-avro_2.11:3.1.0
+$ bin/spark-shell --packages com.databricks:spark-avro_2.11:4.0.0
 ```
 
 Unlike using `--jars`, using `--packages` ensures that this library and its dependencies will be added to the classpath. The `--packages` argument can also be used with `bin/spark-submit`.
