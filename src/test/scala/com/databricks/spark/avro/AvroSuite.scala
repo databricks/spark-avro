@@ -706,7 +706,6 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-<<<<<<< HEAD
   test("generic record converts to row and back") {
     val nested =
       SchemaBuilder.record("simple_record").fields()
