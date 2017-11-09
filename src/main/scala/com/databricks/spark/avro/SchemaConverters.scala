@@ -16,6 +16,8 @@
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
+import java.sql.Timestamp
+import java.sql.Date
 
 import scala.collection.JavaConverters._
 
@@ -152,6 +154,13 @@ object SchemaConverters {
         case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
              (FloatType, FLOAT) | (LongType, LONG) =>
           identity
+        case (TimestampType, LONG) =>
+          (item: AnyRef) => {
+            new Timestamp(item.asInstanceOf[Long])
+          }
+        case (DateType, LONG) =>
+          (item: AnyRef) =>
+            new Date(item.asInstanceOf[Long])
         case (BinaryType, FIXED) =>
           (item: AnyRef) =>
             if (item == null) {
@@ -299,7 +308,7 @@ object SchemaConverters {
         case (left, right) =>
           throw new IncompatibleSchemaException(
             s"Cannot convert Avro schema to catalyst type because schema at path " +
-              s"${path.mkString(".")} is not compatible (avroType = $left, sqlType = $right). \n" +
+              s"${path.mkString(".")} is not compatible (avroType = $right, sqlType = $left). \n" +
               s"Source Avro schema: $sourceAvroSchema.\n" +
               s"Target Catalyst type: $targetSqlType")
       }
