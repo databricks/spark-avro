@@ -16,24 +16,35 @@
 
 package com.databricks.spark.avro
 
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapreduce.TaskAttemptContext
-
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
 
-private[avro] class AvroOutputWriterFactory(
+private[avro] class Spark21AvroOutputWriterFactory(
     schema: StructType,
     recordName: String,
     recordNamespace: String) extends OutputWriterFactory {
 
-  override def getFileExtension(context: TaskAttemptContext): String = {
-    ".avro"
+  def doGetDefaultWorkFile(path: String, context: TaskAttemptContext, extension: String): Path = {
+    new Path(path)
   }
 
-  override def newInstance(
-      path: String,
-      dataSchema: StructType,
-      context: TaskAttemptContext): OutputWriter = {
-    new AvroOutputWriter(path, context, schema, recordName, recordNamespace)
+  def newInstance(
+       path: String,
+       dataSchema: StructType,
+       context: TaskAttemptContext): OutputWriter = {
+
+    val ot = Class.forName("com.databricks.spark.avro.AvroOutputWriter")
+    val meth = ot.getDeclaredConstructor(
+      classOf[String], classOf[TaskAttemptContext], classOf[StructType],
+      classOf[String], classOf[String],
+      classOf[Function3[String, TaskAttemptContext, String, Path]]
+    )
+    meth.setAccessible(true)
+    meth.newInstance(path, context, schema, recordName, recordNamespace, doGetDefaultWorkFile _)
+      .asInstanceOf[OutputWriter]
   }
+
+  override def getFileExtension(context: TaskAttemptContext): String = ".avro"
 }

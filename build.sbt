@@ -1,14 +1,17 @@
+
+lazy val commonSettings = Seq(
+  organization := "com.databricks",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.5", "2.11.7")
+)
+
+commonSettings
+
 name := "spark-avro"
-
-organization := "com.databricks"
-
-scalaVersion := "2.11.8"
-
-crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 spName := "databricks/spark-avro"
 
-sparkVersion := "2.1.0"
+sparkVersion := "2.0.0"
 
 val testSparkVersion = settingKey[String]("The version of Spark to test against.")
 
@@ -107,7 +110,7 @@ pomExtra :=
 
 bintrayReleaseOnPublish in ThisBuild := false
 
-import ReleaseTransformations._
+import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
 
 // Add publishing to spark packages as another step.
 releaseProcess := Seq[ReleaseStep](
@@ -122,4 +125,27 @@ releaseProcess := Seq[ReleaseStep](
   commitNextVersion,
   pushChanges,
   releaseStepTask(spPublish)
+)
+
+
+lazy val spark21xProj = project.in(file("spark-2.1.x")).settings(
+  commonSettings,
+  libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.1.0" % "provided"
+).disablePlugins(SparkPackagePlugin)
+
+
+lazy val spark20xProj = project.in(file("spark-2.0.x")).settings(
+  commonSettings,
+  libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.0.0" % "provided"
+).disablePlugins(SparkPackagePlugin)
+
+
+unmanagedClasspath in Test ++= {
+  (exportedProducts in (spark20xProj, Runtime)).value ++
+    (exportedProducts in (spark21xProj, Runtime)).value
+}
+
+products in (Compile, packageBin) ++= Seq(
+  (classDirectory in (spark20xProj, Compile)).value,
+  (classDirectory in (spark21xProj, Compile)).value
 )

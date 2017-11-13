@@ -24,19 +24,21 @@ import java.util.HashMap
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
-import scala.collection.immutable.Map
 
+import scala.collection.immutable.Map
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
-import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.mapred.AvroKey
 import org.apache.avro.mapreduce.AvroKeyOutputFormat
+import org.apache.avro.{Schema, SchemaBuilder}
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.NullWritable
-import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext, TaskAttemptID}
-
+import org.apache.hadoop.mapreduce.{RecordWriter, TaskAttemptContext}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types._
+
+import scala.collection.immutable.Map
 
 // NOTE: This class is instantiated and used on executor side only, no need to be serializable.
 private[avro] class AvroOutputWriter(
@@ -44,12 +46,21 @@ private[avro] class AvroOutputWriter(
     context: TaskAttemptContext,
     schema: StructType,
     recordName: String,
-    recordNamespace: String) extends OutputWriter {
+    recordNamespace: String,
+    workPathFunc: (String, TaskAttemptContext, String) => Path) extends OutputWriter  {
 
   private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
+
   // copy of the old conversion logic after api change in SPARK-19085
-  private lazy val internalRowConverter =
-    CatalystTypeConverters.createToScalaConverter(schema).asInstanceOf[InternalRow => Row]
+  //
+  // Need to use reflection for Spark versions < 2.2.0
+  //
+  private lazy val internalRowConverter = {
+    val clazz = Class.forName("org.apache.spark.sql.catalyst.CatalystTypeConverters$")
+    val m = clazz.getDeclaredMethod("createToScalaConverter", classOf[DataType])
+    val obj = clazz.getField("MODULE$").get(null)
+    m.invoke(obj, schema).asInstanceOf[InternalRow => Row]
+  }
 
   /**
    * Overrides the couple of methods responsible for generating the output streams / files so
@@ -59,7 +70,7 @@ private[avro] class AvroOutputWriter(
     new AvroKeyOutputFormat[GenericRecord]() {
 
       override def getDefaultWorkFile(context: TaskAttemptContext, extension: String): Path = {
-        new Path(path)
+        workPathFunc(path, context, extension)
       }
 
       @throws(classOf[IOException])

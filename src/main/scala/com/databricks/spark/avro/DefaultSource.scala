@@ -20,21 +20,17 @@ import java.io._
 import java.net.URI
 import java.util.zip.Deflater
 
-import scala.util.control.NonFatal
-
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
-import org.apache.avro.{Schema, SchemaBuilder}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
 import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
+import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
-import org.slf4j.LoggerFactory
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
@@ -43,6 +39,9 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFactory, PartitionedFile}
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.StructType
+import org.slf4j.LoggerFactory
+
+import scala.util.control.NonFatal
 
 private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
   private val log = LoggerFactory.getLogger(getClass)
@@ -142,7 +141,18 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         log.error(s"unsupported compression codec $unknown")
     }
 
-    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
+    val clz = spark.version match {
+      case v if v.startsWith("2.0.") => {
+        Class.forName("com.databricks.spark.avro.Spark20AvroOutputWriterFactory")
+      }
+      case v => {
+        Class.forName("com.databricks.spark.avro.Spark21AvroOutputWriterFactory")
+      }
+    }
+
+    val m = clz.getDeclaredConstructor(classOf[StructType], classOf[String], classOf[String])
+    m.setAccessible(true)
+    m.newInstance(dataSchema, recordName, recordNamespace).asInstanceOf[OutputWriterFactory]
   }
 
   override def buildReader(
