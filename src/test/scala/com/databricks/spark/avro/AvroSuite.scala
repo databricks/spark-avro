@@ -505,6 +505,27 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("correctly read long as date/timestamp type") {
+    TestUtils.withTempDir { tempDir =>
+      val sparkSession = spark
+      import sparkSession.implicits._
+
+      val currentTime = new Timestamp(System.currentTimeMillis())
+      val currentDate = new Date(System.currentTimeMillis())
+      val schema = StructType(Seq(
+        StructField("_1", DateType, false), StructField("_2", TimestampType, false)))
+      val writeDs = Seq((currentDate, currentTime)).toDS
+
+      val avroDir = tempDir + "/avro"
+      writeDs.write.avro(avroDir)
+      assert(spark.read.avro(avroDir).collect().length == 1)
+
+      val readDs = spark.read.schema(schema).avro(avroDir).as[(Date, Timestamp)]
+
+      assert(readDs.collect().sameElements(writeDs.collect()))
+    }
+  }
+
   test("support of globbed paths") {
     val e1 = spark.read.avro("*/test/resources/episodes.avro").collect()
     assert(e1.length == 8)
