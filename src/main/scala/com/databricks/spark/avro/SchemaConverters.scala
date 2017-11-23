@@ -19,7 +19,7 @@ import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
 
-import org.apache.avro.generic.GenericData.Fixed
+import org.apache.avro.generic.GenericFixed
 import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.SchemaBuilder._
@@ -157,7 +157,7 @@ object SchemaConverters {
             if (item == null) {
               null
             } else {
-              item.asInstanceOf[Fixed].bytes().clone()
+              item.asInstanceOf[GenericFixed].bytes().clone()
             }
         case (BinaryType, BYTES) =>
           (item: AnyRef) =>
