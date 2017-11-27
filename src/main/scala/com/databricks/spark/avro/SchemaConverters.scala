@@ -71,16 +71,7 @@ object SchemaConverters {
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
       case FLOAT => SchemaType(FloatType, nullable = false)
-      case LONG => {
-        val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
-        if (logicalType != null && logicalType.asText().equalsIgnoreCase(TIMESTAMP)) {
-          SchemaType(TimestampType, nullable = false)
-        } else if (logicalType != null && logicalType.asText().equalsIgnoreCase(DATE)) {
-          SchemaType(TimestampType, nullable = false)
-        } else {
-          SchemaType(LongType, nullable = false)
-        }
-       }
+      case LONG => SchemaType(LongType, nullable = false)
       case FIXED => SchemaType(BinaryType, nullable = false)
       case ENUM => SchemaType(StringType, nullable = false)
 
@@ -195,26 +186,14 @@ object SchemaConverters {
               item.toString
             }
           }
+        // Byte arrays are reused by avro, so we have to make a copy of them.
+        case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
+             (FloatType, FLOAT) | (LongType, LONG) =>
+          identity
         case (TimestampType, LONG) =>
           (item: AnyRef) => new Timestamp(item.asInstanceOf[Long])
         case (DateType, LONG) =>
           (item: AnyRef) => new Date(item.asInstanceOf[Long])
-        case (_, LONG) => (item: AnyRef) => if (item == null) {
-          null
-        } else {
-          val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
-          if (logicalType != null && logicalType.asText().equalsIgnoreCase(TIMESTAMP)) {
-            new Timestamp(item.asInstanceOf[Long].longValue())
-          } else if (logicalType != null && logicalType.asText().equalsIgnoreCase(DATE)) {
-            new Timestamp(item.asInstanceOf[Long].longValue())
-          } else {
-            item
-          }
-        }
-        // Byte arrays are reused by avro, so we have to make a copy of them.
-        case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
-             (FloatType, FLOAT) =>
-          identity
         case (BinaryType, FIXED) =>
           (item: AnyRef) =>
             if (item == null) {

@@ -784,13 +784,6 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     assert(decimals.apply(0).equals(dec1))
     assert(decimals.apply(1).equals(dec2))
     assert(df.schema.apply("decimal").dataType == DecimalType(25,9))
-    
-    val timestamps = df.select("timestamp").collect().map(x => x.getAs[Timestamp](0))
-    val t1 = new Timestamp(1460354720000l)
-    val t2 = new Timestamp(1462842320000l)
-    
-    assert(timestamps.apply(0).equals(t1))
-    assert(timestamps.apply(1).equals(t2))
-    assert(df.schema.apply("timestamp").dataType == TimestampType) 
+
   }
 }
