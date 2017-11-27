@@ -30,8 +30,6 @@ import org.apache.avro.Schema.Type._
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.types._
 import org.apache.avro.Schema.Type
-import java.sql.Timestamp
-import java.sql.Date
 import scala.collection.JavaConversions._
 
 /**
