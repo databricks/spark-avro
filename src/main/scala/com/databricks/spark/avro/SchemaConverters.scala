@@ -42,8 +42,6 @@ object SchemaConverters {
 
   val LOGICAL_TYPE = "logicalType"
   val DECIMAL = "decimal"
-  val TIMESTAMP = "timestamp";
-  val DATE = "date";
   val PRECISION = "precision"
   val SCALE = "scale"
 
