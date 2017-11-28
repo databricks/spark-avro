@@ -17,9 +17,10 @@
 package com.databricks.spark.avro
 
 import org.apache.hadoop.conf.Configuration
+import org.scalatest.FunSuite
+
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.{JavaSerializer, KryoSerializer, SerializerInstance}
-import org.scalatest.FunSuite
 
 
 class SerializableConfigurationSuite extends FunSuite {

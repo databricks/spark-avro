@@ -21,17 +21,19 @@ import java.nio.file.Files
 import java.sql.{Date, Timestamp}
 import java.util.{TimeZone, UUID}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
+import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 import org.apache.avro.Schema
 import org.apache.avro.Schema.{Field, Type}
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.generic.GenericData.{EnumSymbol, Fixed}
 import org.apache.commons.io.FileUtils
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
+
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
-import com.databricks.spark.avro.SchemaConverters.IncompatibleSchemaException
 
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
@@ -95,7 +97,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("test NULL avro type") {
     TestUtils.withTempDir { dir =>
-      val fields = Seq(new Field("null", Schema.create(Type.NULL), "doc", null))
+      val fields = Seq(new Field("null", Schema.create(Type.NULL), "doc", null)).asJava
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
       val datumWriter = new GenericDatumWriter[GenericRecord](schema)
@@ -116,8 +118,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("union(int, long) is read as long") {
     TestUtils.withTempDir { dir =>
       val avroSchema: Schema = {
-        val union = Schema.createUnion(List(Schema.create(Type.INT), Schema.create(Type.LONG)))
-        val fields = Seq(new Field("field1", union, "doc", null))
+        val union =
+          Schema.createUnion(List(Schema.create(Type.INT), Schema.create(Type.LONG)).asJava)
+        val fields = Seq(new Field("field1", union, "doc", null)).asJava
         val schema = Schema.createRecord("name", "docs", "namespace", false)
         schema.setFields(fields)
         schema
@@ -143,8 +146,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("union(float, double) is read as double") {
     TestUtils.withTempDir { dir =>
       val avroSchema: Schema = {
-        val union = Schema.createUnion(List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE)))
-        val fields = Seq(new Field("field1", union, "doc", null))
+        val union =
+          Schema.createUnion(List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE)).asJava)
+        val fields = Seq(new Field("field1", union, "doc", null)).asJava
         val schema = Schema.createRecord("name", "docs", "namespace", false)
         schema.setFields(fields)
         schema
@@ -171,8 +175,12 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     TestUtils.withTempDir { dir =>
       val avroSchema: Schema = {
         val union = Schema.createUnion(
-          List(Schema.create(Type.FLOAT), Schema.create(Type.DOUBLE), Schema.create(Type.NULL)))
-        val fields = Seq(new Field("field1", union, "doc", null))
+          List(Schema.create(Type.FLOAT),
+            Schema.create(Type.DOUBLE),
+            Schema.create(Type.NULL)
+          ).asJava
+        )
+        val fields = Seq(new Field("field1", union, "doc", null)).asJava
         val schema = Schema.createRecord("name", "docs", "namespace", false)
         schema.setFields(fields)
         schema
@@ -197,8 +205,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
   test("Union of a single type") {
     TestUtils.withTempDir { dir =>
-      val UnionOfOne = Schema.createUnion(List(Schema.create(Type.INT)))
-      val fields = Seq(new Field("field1", UnionOfOne, "doc", null))
+      val UnionOfOne = Schema.createUnion(List(Schema.create(Type.INT)).asJava)
+      val fields = Seq(new Field("field1", UnionOfOne, "doc", null)).asJava
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
 
@@ -221,15 +229,15 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   test("Complex Union Type") {
     TestUtils.withTempDir { dir =>
       val fixedSchema = Schema.createFixed("fixed_name", "doc", "namespace", 4)
-      val enumSchema = Schema.createEnum("enum_name", "doc", "namespace", List("e1", "e2"))
+      val enumSchema = Schema.createEnum("enum_name", "doc", "namespace", List("e1", "e2").asJava)
       val complexUnionType = Schema.createUnion(
-        List(Schema.create(Type.INT), Schema.create(Type.STRING), fixedSchema, enumSchema))
+        List(Schema.create(Type.INT), Schema.create(Type.STRING), fixedSchema, enumSchema).asJava)
       val fields = Seq(
         new Field("field1", complexUnionType, "doc", null),
         new Field("field2", complexUnionType, "doc", null),
         new Field("field3", complexUnionType, "doc", null),
         new Field("field4", complexUnionType, "doc", null)
-      )
+      ).asJava
       val schema = Schema.createRecord("name", "docs", "namespace", false)
       schema.setFields(fields)
       val datumWriter = new GenericDatumWriter[GenericRecord](schema)
@@ -265,7 +273,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         StructField("map", MapType(StringType, StringType), true),
         StructField("struct", StructType(Seq(StructField("int", IntegerType, true))))))
       val rdd = spark.sparkContext.parallelize(Seq[Row](
-        Row(null, new Timestamp(1), Array[Short](1,2,3), null, null),
+        Row(null, new Timestamp(1), Array[Short](1, 2, 3), null, null),
         Row(null, null, null, null, null),
         Row(null, null, null, null, null),
         Row(null, null, null, null, null)))
@@ -336,7 +344,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       }
 
       val rdd = spark.sparkContext.parallelize(Seq(
-        Row(arrayOfByte, Array[Short](1,2,3,4), Array[Float](1f, 2f, 3f, 4f),
+        Row(arrayOfByte, Array[Short](1, 2, 3, 4), Array[Float](1f, 2f, 3f, 4f),
           Array[Boolean](true, false, true, false), Array[Long](1L, 2L), Array[Double](1.0, 2.0),
           Array[BigDecimal](BigDecimal.valueOf(3)), Array[Array[Byte]](arrayOfByte, arrayOfByte),
           Array[Timestamp](new Timestamp(0)),

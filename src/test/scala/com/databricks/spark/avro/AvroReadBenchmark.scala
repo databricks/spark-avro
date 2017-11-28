@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit
 
 import org.apache.spark.sql.SparkSession
 
+// scalastyle:off println
 
 /**
  * This object runs a simple benchmark test on the avro files in benchmarkFilesDir. It measures
