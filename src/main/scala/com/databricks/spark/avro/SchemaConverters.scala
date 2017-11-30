@@ -28,12 +28,19 @@ import org.apache.avro.generic.GenericFixed
 
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.types._
+import org.apache.avro.Schema.Type
+import scala.collection.JavaConversions._
 
 /**
  * This object contains method that are used to convert sparkSQL schemas to avro schemas and vice
  * versa.
  */
 object SchemaConverters {
+
+  val LOGICAL_TYPE = "logicalType"
+  val DECIMAL = "decimal"
+  val PRECISION = "precision"
+  val SCALE = "scale"
 
   class IncompatibleSchemaException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 
@@ -45,7 +52,16 @@ object SchemaConverters {
   def toSqlType(avroSchema: Schema): SchemaType = {
     avroSchema.getType match {
       case INT => SchemaType(IntegerType, nullable = false)
-      case STRING => SchemaType(StringType, nullable = false)
+      case STRING => {
+        val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
+        if (logicalType != null && logicalType.asText().equalsIgnoreCase(DECIMAL)) {
+          val precision = avroSchema.getJsonProp(PRECISION).asInt
+          val scale = avroSchema.getJsonProp(SCALE).asInt
+          SchemaType(DecimalType(precision, scale), nullable = false)
+        } else {
+          SchemaType(StringType, nullable = false)
+        }
+      }
       case BOOLEAN => SchemaType(BooleanType, nullable = false)
       case BYTES => SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
@@ -56,6 +72,7 @@ object SchemaConverters {
 
       case RECORD =>
         val fields = avroSchema.getFields.asScala.map { f =>
+          f.getJsonProps.foreach(x => f.schema().addProp(x._1, x._2))
           val schemaType = toSqlType(f.schema())
           StructField(f.name, schemaType.dataType, schemaType.nullable)
         }
@@ -79,7 +96,9 @@ object SchemaConverters {
           // In case of a union with null, eliminate it and make a recursive call
           val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            toSqlType(remainingUnionTypes.head).copy(nullable = true)
+            val remainingSchema = remainingUnionTypes.head
+            avroSchema.getJsonProps.foreach(x => remainingSchema.addProp(x._1, x._2))
+            toSqlType(remainingSchema).copy(nullable = true)
           } else {
             toSqlType(Schema.createUnion(remainingUnionTypes.asJava)).copy(nullable = true)
           }
@@ -147,8 +166,21 @@ object SchemaConverters {
       val avroType = avroSchema.getType
       (sqlType, avroType) match {
         // Avro strings are in Utf8, so we have to call toString on them
-        case (StringType, STRING) | (StringType, ENUM) =>
+        case (StringType, ENUM) =>
           (item: AnyRef) => if (item == null) null else item.toString
+        case (_, STRING) =>
+          (item: AnyRef) => if (item == null) {
+            null
+          } else {
+            val logicalType = avroSchema.getJsonProp(LOGICAL_TYPE)
+            if (logicalType != null && logicalType.asText().equalsIgnoreCase(DECIMAL)) {
+              val precision = avroSchema.getJsonProp(PRECISION).asInt
+              val scale = avroSchema.getJsonProp(SCALE).asInt
+              Decimal.apply(BigDecimal.apply(item.toString()), precision, scale)
+            } else {
+              item.toString
+            }
+          }
         // Byte arrays are reused by avro, so we have to make a copy of them.
         case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
              (FloatType, FLOAT) | (LongType, LONG) =>
@@ -184,6 +216,7 @@ object SchemaConverters {
             val sqlField = struct.fields(i)
             val avroField = avroSchema.getField(sqlField.name)
             if (avroField != null) {
+              avroField.getJsonProps.foreach(x => avroField.schema().addProp(x._1, x._2))
               val converter = createConverter(avroField.schema(), sqlField.dataType,
                 path :+ sqlField.name)
               converters(i) = converter
@@ -255,7 +288,9 @@ object SchemaConverters {
           if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
             val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
             if (remainingUnionTypes.size == 1) {
-              createConverter(remainingUnionTypes.head, sqlType, path)
+              val remainingSchema = remainingUnionTypes.head
+              avroSchema.getJsonProps.foreach(x => remainingSchema.addProp(x._1, x._2))
+              createConverter(remainingSchema, sqlType, path) 
             } else {
               createConverter(Schema.createUnion(remainingUnionTypes.asJava), sqlType, path)
             }

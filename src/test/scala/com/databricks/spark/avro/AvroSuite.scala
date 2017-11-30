@@ -38,6 +38,7 @@ import org.apache.spark.sql.types._
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val userFile = "src/test/resources/users.avro"
 
   private var spark: SparkSession = _
 
@@ -780,5 +781,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       // Check if the written DataFrame is equals than read DataFrame
       assert(readDf.collect().sameElements(writeDf.collect()))
     }
+  }
+  
+  test("Logical Types") {
+    val df = spark.read.avro(userFile)
+    val decimals = df.select("decimal").collect().map(x => Decimal.apply(x.getDecimal(0)))
+    val dec1 = Decimal.apply(BigDecimal.apply("55555.555550000"), 25, 9)
+    val dec2 = Decimal.apply(BigDecimal.apply("8747336654.536756000"), 25, 9)
+    
+    assert(decimals.apply(0).equals(dec1))
+    assert(decimals.apply(1).equals(dec2))
+    assert(df.schema.apply("decimal").dataType == DecimalType(25,9))
+
   }
 }
