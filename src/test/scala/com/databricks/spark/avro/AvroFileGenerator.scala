@@ -25,6 +25,8 @@ import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic._
 import org.apache.commons.io.FileUtils
 
+// scalastyle:off println
+
 /**
  * This object allows you to generate large avro files that can be used for speed benchmarking.
  * See README on how to use it.
@@ -89,3 +91,4 @@ object AvroFileGenerator {
     println("Generation finished")
   }
 }
+// scalastyle:on println

@@ -19,14 +19,17 @@ package com.databricks.spark.avro
 import java.sql.Date
 import java.util.concurrent.TimeUnit
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.math.BigDecimal.RoundingMode
 import scala.util.Random
+
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
+
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 
-import scala.math.BigDecimal.RoundingMode
+// scalastyle:off println
 
 /**
  * This object runs a simple benchmark test to find out how long does it take to write a large
@@ -52,8 +55,8 @@ object AvroWriteBenchmark {
     val rand = new Random()
     Row(rand.nextString(defaultSize), rand.nextInt(), new Date(rand.nextLong()), rand.nextDouble(),
       BigDecimal(rand.nextDouble()).setScale(10, RoundingMode.HALF_UP),
-      TestUtils.generateRandomArray(rand, defaultSize).toSeq,
-      TestUtils.generateRandomMap(rand, defaultSize).toMap, Row(rand.nextInt()))
+      TestUtils.generateRandomArray(rand, defaultSize).asScala,
+      TestUtils.generateRandomMap(rand, defaultSize).asScala, Row(rand.nextInt()))
   }
 
   def main(args: Array[String]) {
@@ -88,3 +91,4 @@ object AvroWriteBenchmark {
     spark.sparkContext.stop()  // Otherwise scary exception message appears
   }
 }
+// scalastyle:on println

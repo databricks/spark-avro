@@ -16,16 +16,15 @@
 package com.databricks.spark.avro
 
 import java.nio.ByteBuffer
-import java.sql.Timestamp
-import java.sql.Date
+import java.sql.{Date, Timestamp}
 
 import scala.collection.JavaConverters._
 
-import org.apache.avro.generic.GenericFixed
-import org.apache.avro.generic.{GenericData, GenericRecord}
 import org.apache.avro.{Schema, SchemaBuilder}
-import org.apache.avro.SchemaBuilder._
 import org.apache.avro.Schema.Type._
+import org.apache.avro.SchemaBuilder._
+import org.apache.avro.generic.{GenericData, GenericRecord}
+import org.apache.avro.generic.GenericFixed
 
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.types._
@@ -409,10 +408,10 @@ object SchemaConverters {
   }
 
   /**
-    * Returns a new namespace depending on the data type of the element.
-    * If the data type is a StructType it returns the current namespace concatenated
-    * with the element name, otherwise it returns the current namespace as it is.
-    */
+   * Returns a new namespace depending on the data type of the element.
+   * If the data type is a StructType it returns the current namespace concatenated
+   * with the element name, otherwise it returns the current namespace as it is.
+   */
   private[avro] def getNewRecordNamespace(
       elementDataType: DataType,
       currentRecordNamespace: String,

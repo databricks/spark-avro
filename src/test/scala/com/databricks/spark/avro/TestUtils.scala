@@ -34,7 +34,7 @@ private[avro] object TestUtils {
    * This function checks that all records in a file match the original
    * record.
    */
-  def checkReloadMatchesSaved(spark: SparkSession, testFile: String, avroDir: String) = {
+  def checkReloadMatchesSaved(spark: SparkSession, testFile: String, avroDir: String): Unit = {
 
     def convertToString(elem: Any): String = {
       elem match {

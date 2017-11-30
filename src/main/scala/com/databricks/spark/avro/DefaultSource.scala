@@ -52,6 +52,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
     case _ => false
   }
 
+  // Dummy hashCode() to appease ScalaStyle.
+  override def hashCode(): Int = super.hashCode()
+
   override def inferSchema(
       spark: SparkSession,
       options: Map[String, String],
