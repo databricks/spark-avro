@@ -154,9 +154,13 @@ object SchemaConverters {
              (FloatType, FLOAT) | (LongType, LONG) =>
           identity
         case (TimestampType, LONG) =>
-          (item: AnyRef) => new Timestamp(item.asInstanceOf[Long])
+          (item: AnyRef) => Option(item).map { o =>
+            new Timestamp(o.asInstanceOf[Long])
+          }.orNull
         case (DateType, LONG) =>
-          (item: AnyRef) => new Date(item.asInstanceOf[Long])
+          (item: AnyRef) => Option(item).map { o =>
+            new Date(o.asInstanceOf[Long])
+          }.orNull
         case (BinaryType, FIXED) =>
           (item: AnyRef) =>
             if (item == null) {
