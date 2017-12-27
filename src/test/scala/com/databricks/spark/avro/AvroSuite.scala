@@ -542,8 +542,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val nullTime: Timestamp = null
       val nullDate: Date = null
       val schema = StructType(Seq(
-        StructField("_1", DateType, false), 
-        StructField("_2", TimestampType, false))
+        StructField("_1", DateType, nullable = true), 
+        StructField("_2", TimestampType, nullable = true))
       )
       val writeDs = Seq((nullDate, nullTime)).toDS
 
