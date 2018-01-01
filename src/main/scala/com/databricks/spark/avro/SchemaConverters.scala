@@ -175,7 +175,9 @@ object SchemaConverters {
             val avroField = avroSchema.getField(sqlField.name)
             if (avroField != null) {
               val converter = (item: AnyRef) => {
-                if (item == null) item else {
+                if (item == null) {
+                  item
+                } else {
                   createConverter(avroField.schema, sqlField.dataType, path :+ sqlField.name)(item)
                 }
               }
