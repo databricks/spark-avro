@@ -534,6 +534,28 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("does not coerce null date/timestamp value to 0 epoch.") {
+    TestUtils.withTempDir { tempDir =>
+      val sparkSession = spark
+      import sparkSession.implicits._
+
+      val nullTime: Timestamp = null
+      val nullDate: Date = null
+      val schema = StructType(Seq(
+        StructField("_1", DateType, nullable = true), 
+        StructField("_2", TimestampType, nullable = true))
+      )
+      val writeDs = Seq((nullDate, nullTime)).toDS
+
+      val avroDir = tempDir + "/avro"
+      writeDs.write.avro(avroDir)
+      val readValues = spark.read.schema(schema).avro(avroDir).as[(Date, Timestamp)].collect
+
+      assert(readValues.size == 1)
+      assert(readValues.head == (nullDate, nullTime))
+    }
+  }
+
   test("support of globbed paths") {
     val e1 = spark.read.avro("*/test/resources/episodes.avro").collect()
     assert(e1.length == 8)
