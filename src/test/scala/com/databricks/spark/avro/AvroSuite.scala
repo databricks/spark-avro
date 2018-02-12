@@ -803,4 +803,15 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(readDf.collect().sameElements(writeDf.collect()))
     }
   }
+
+  test("writing avro partitions with different schemas and reading back out with a single predictable schema") {
+    TestUtils.withTempDir { tempDir =>
+      val df1 = spark.createDataFrame(Seq(("a", 1), ("b", 2)))
+      df1.write.avro(s"$tempDir/different_schemas/z=1")
+      val df2 = spark.createDataFrame(Seq(Tuple1("a"), Tuple1("b")))
+      df2.write.avro(s"$tempDir/different_schemas/z=2")
+      val df3 = spark.read.avro(s"$tempDir/different_schemas")
+      assert(df3.schema.fieldNames.toSet === Set("_1", "_2", "z"))
+    }
+  }
 }
