@@ -16,11 +16,12 @@
 
 package com.databricks.spark.avro
 
+import java.util.concurrent.TimeUnit
+
 import org.apache.hadoop.mapreduce.TaskAttemptContext
 
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
-import java.util.concurrent.TimeUnit
 
 private[avro] class AvroOutputWriterFactory(
     schema: StructType,
