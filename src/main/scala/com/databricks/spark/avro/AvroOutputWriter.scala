@@ -20,6 +20,7 @@ import java.io.{IOException, OutputStream}
 import java.nio.ByteBuffer
 import java.sql.{Date, Timestamp}
 import java.util.HashMap
+import java.util.concurrent.TimeUnit
 
 import scala.collection.immutable.Map
 
@@ -43,9 +44,10 @@ private[avro] class AvroOutputWriter(
     context: TaskAttemptContext,
     schema: StructType,
     recordName: String,
-    recordNamespace: String) extends OutputWriter {
+    recordNamespace: String,
+    timeUnit: TimeUnit) extends OutputWriter {
 
-  private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
+  private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace, timeUnit)
   // copy of the old conversion logic after api change in SPARK-19085
   private lazy val internalRowConverter =
     CatalystTypeConverters.createToScalaConverter(schema).asInstanceOf[InternalRow => Row]
@@ -89,7 +91,8 @@ private[avro] class AvroOutputWriter(
   private def createConverterToAvro(
       dataType: DataType,
       structName: String,
-      recordNamespace: String): (Any) => Any = {
+      recordNamespace: String,
+      timeUnit: TimeUnit): (Any) => Any = {
     dataType match {
       case BinaryType => (item: Any) => item match {
         case null => null
@@ -99,14 +102,19 @@ private[avro] class AvroOutputWriter(
            FloatType | DoubleType | StringType | BooleanType => identity
       case _: DecimalType => (item: Any) => if (item == null) null else item.toString
       case TimestampType => (item: Any) =>
-        if (item == null) null else item.asInstanceOf[Timestamp].getTime
+        if (item == null) null else {
+          timeUnit.convert(item.asInstanceOf[Timestamp].getTime, TimeUnit.MILLISECONDS)
+        }
       case DateType => (item: Any) =>
-        if (item == null) null else item.asInstanceOf[Date].getTime
+        if (item == null) null else {
+          timeUnit.convert(item.asInstanceOf[Date].getTime, TimeUnit.MILLISECONDS)
+        }
       case ArrayType(elementType, _) =>
         val elementConverter = createConverterToAvro(
           elementType,
           structName,
-          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName))
+          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName),
+          timeUnit)
         (item: Any) => {
           if (item == null) {
             null
@@ -126,7 +134,8 @@ private[avro] class AvroOutputWriter(
         val valueConverter = createConverterToAvro(
           valueType,
           structName,
-          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName))
+          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName),
+          timeUnit)
         (item: Any) => {
           if (item == null) {
             null
@@ -146,7 +155,8 @@ private[avro] class AvroOutputWriter(
           createConverterToAvro(
             field.dataType,
             field.name,
-            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name)))
+            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name),
+            timeUnit))
         (item: Any) => {
           if (item == null) {
             null

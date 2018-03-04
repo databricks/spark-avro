@@ -322,6 +322,26 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("Timeunit conversion") {
+    TestUtils.withTempDir { dir =>
+      val schema = StructType(Seq(
+        StructField("float", FloatType, true),
+        StructField("timestamp", TimestampType, true)
+      ))
+      TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+      val rdd = spark.sparkContext.parallelize(Seq(
+        Row(1f, null),
+        Row(2f, new Timestamp(1451948400000L)),
+        Row(3f, new Timestamp(1460066400500L))
+      ))
+      val df = spark.createDataFrame(rdd, schema)
+      df.write.option("timeUnit", "microseconds").avro(dir.toString)
+      assert(spark.read.avro(dir.toString).count == rdd.count)
+      assert(spark.read.avro(dir.toString).select("timestamp").collect().map(_(0)).toSet ==
+        Array(null, 1451948400000000L, 1460066400500000L).toSet)
+    }
+  }
+
   test("Array data types") {
     TestUtils.withTempDir { dir =>
       val testSchema = StructType(Seq(
