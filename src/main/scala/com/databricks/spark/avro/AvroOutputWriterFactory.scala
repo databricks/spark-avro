@@ -20,11 +20,13 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
+import java.util.concurrent.TimeUnit
 
 private[avro] class AvroOutputWriterFactory(
     schema: StructType,
     recordName: String,
-    recordNamespace: String) extends OutputWriterFactory {
+    recordNamespace: String,
+    timeUnit: TimeUnit) extends OutputWriterFactory {
 
   override def getFileExtension(context: TaskAttemptContext): String = {
     ".avro"
@@ -34,6 +36,6 @@ private[avro] class AvroOutputWriterFactory(
       path: String,
       dataSchema: StructType,
       context: TaskAttemptContext): OutputWriter = {
-    new AvroOutputWriter(path, context, schema, recordName, recordNamespace)
+    new AvroOutputWriter(path, context, schema, recordName, recordNamespace, timeUnit)
   }
 }
