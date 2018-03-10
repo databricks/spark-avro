@@ -58,6 +58,12 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  test("reading from multiple paths") {
+    val df = spark.read.avro(episodesFile, episodesFile)
+    df.registerTempTable("avro_table")
+    assert(spark.sql("select count(*) from avro_table").collect().head === Row(16))
+  }
+
   test("reading and writing partitioned data") {
     val df = spark.read.avro(episodesFile)
     val fields = List("title", "air_date", "doctor")
