@@ -35,6 +35,6 @@ package object avro {
 
     @scala.annotation.varargs
     def avro(sources: String*): DataFrame =
-      reader.format("com.databricks.spark.avro").load(sources:_*)
+      reader.format("com.databricks.spark.avro").load(sources: _*)
   }
 }
