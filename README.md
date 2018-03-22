@@ -101,7 +101,7 @@ This library supports writing of all Spark SQL types into Avro. For most types, 
 | ---------------|-----------|
 | ByteType       | int       |
 | ShortType      | int       |
-| DecimalType    | string    |
+| DecimalType    | bytes     |
 | BinaryType     | bytes     |
 | TimestampType  | long      |
 | StructType     | record    |

@@ -478,6 +478,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       for (i <- arrayOfByte.indices) {
         arrayOfByte(i) = i.toByte
       }
+
+      val decimalBytes = new java.math.BigDecimal("3.14").unscaledValue().toByteArray
+
       val cityRDD = spark.sparkContext.parallelize(Seq(
         Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
         Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
@@ -492,9 +495,9 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val times = spark.read.avro(avroDir).select("Time").collect()
       assert(times.map(_(0)).toSet == Set(666, 777, 42))
 
-      // DecimalType should be converted to string
+      // DecimalType should be converted to java.math.BigDecimal
       val decimals = spark.read.avro(avroDir).select("Decimal").collect()
-      assert(decimals.map(_(0)).contains("3.14"))
+      assert(decimals.map(_(0)).contains(new java.math.BigDecimal("3.14")))
 
       // There should be a null entry
       val length = spark.read.avro(avroDir).select("Length").collect()
