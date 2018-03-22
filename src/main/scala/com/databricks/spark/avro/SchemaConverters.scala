@@ -39,6 +39,20 @@ object SchemaConverters {
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
   /**
+    * Indicator of a field with decimal logical type and scale property.
+    */
+  private def isDecimalField(avroSchema: Schema): Boolean = {
+    val nullableLogicalTypeNode = avroSchema.getJsonProp("logicalType")
+    val logicalTypeOption = Option(nullableLogicalTypeNode).map(_.asText())
+    val matchLogicalType = logicalTypeOption == Some("decimal")
+    val hasScale = Option(decimalScaleProp(avroSchema))
+      .map(_.asInt(Int.MinValue)).exists(_ >= 0)
+    val hasPrecision = Option(decimalPrecisionProp(avroSchema))
+      .map(_.asInt(Int.MinValue)).exists(_ > 0)
+    matchLogicalType && hasScale && hasPrecision
+  }
+
+  /**
    * This function takes an avro schema and returns a sql schema.
    */
   def toSqlType(avroSchema: Schema): SchemaType = {
@@ -46,7 +60,12 @@ object SchemaConverters {
       case INT => SchemaType(IntegerType, nullable = false)
       case STRING => SchemaType(StringType, nullable = false)
       case BOOLEAN => SchemaType(BooleanType, nullable = false)
-      case BYTES => SchemaType(BinaryType, nullable = false)
+      case BYTES => if (isDecimalField(avroSchema)) {
+        SchemaType(DecimalType(
+          decimalPrecisionProp(avroSchema).asInt,
+          decimalScaleProp(avroSchema).asInt
+        ), nullable = false)
+      } else SchemaType(BinaryType, nullable = false)
       case DOUBLE => SchemaType(DoubleType, nullable = false)
       case FLOAT => SchemaType(FloatType, nullable = false)
       case LONG => SchemaType(LongType, nullable = false)
@@ -104,6 +123,14 @@ object SchemaConverters {
 
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")
     }
+  }
+
+  private def decimalScaleProp(avroSchema: Schema) = {
+    avroSchema.getJsonProp("scale")
+  }
+
+  private def decimalPrecisionProp(avroSchema: Schema) = {
+    avroSchema.getJsonProp("precision")
   }
 
   /**
@@ -168,6 +195,17 @@ object SchemaConverters {
               val bytes = new Array[Byte](byteBuffer.remaining)
               byteBuffer.get(bytes)
               bytes
+            }
+
+        case (decimalType: DecimalType, BYTES) =>
+          (item: AnyRef) =>
+            if (item == null) {
+              null
+            } else {
+              val byteBuffer = item.asInstanceOf[ByteBuffer]
+              val bytes = new Array[Byte](byteBuffer.remaining)
+              byteBuffer.get(bytes)
+              BigDecimal(BigInt(bytes), decimalType.scale)
             }
 
         case (struct: StructType, RECORD) =>
@@ -323,7 +361,8 @@ object SchemaConverters {
       case LongType => schemaBuilder.longType()
       case FloatType => schemaBuilder.floatType()
       case DoubleType => schemaBuilder.doubleType()
-      case _: DecimalType => schemaBuilder.stringType()
+      case decimalType: DecimalType =>
+        createBytesWithDecimalLogicalType(schemaBuilder.bytesBuilder(), decimalType)
       case StringType => schemaBuilder.stringType()
       case BinaryType => schemaBuilder.bytesType()
       case BooleanType => schemaBuilder.booleanType()
@@ -350,6 +389,15 @@ object SchemaConverters {
     }
   }
 
+  private def createBytesWithDecimalLogicalType[T](
+    bytesBuilder: BytesBuilder[T], decimalType: DecimalType) = {
+    bytesBuilder
+      .prop("logicalType", "decimal")
+      .prop("precision", decimalType.precision.toString)
+      .prop("scale", decimalType.scale.toString)
+      .endBytes()
+  }
+
   /**
    * This function is used to construct fields of the avro record, where schema of the field is
    * specified by avro representation of dataType. Since builders for record fields are different
@@ -367,7 +415,8 @@ object SchemaConverters {
       case LongType => newFieldBuilder.longType()
       case FloatType => newFieldBuilder.floatType()
       case DoubleType => newFieldBuilder.doubleType()
-      case _: DecimalType => newFieldBuilder.stringType()
+      case decimalType: DecimalType =>
+        createBytesWithDecimalLogicalType(newFieldBuilder.bytesBuilder(), decimalType)
       case StringType => newFieldBuilder.stringType()
       case BinaryType => newFieldBuilder.bytesType()
       case BooleanType => newFieldBuilder.booleanType()
