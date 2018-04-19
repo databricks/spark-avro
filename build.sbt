@@ -20,11 +20,11 @@ testHadoopVersion := sys.props.getOrElse("hadoop.testVersion", "2.2.0")
 
 val testAvroVersion = settingKey[String]("The version of Avro to test against.")
 
-testAvroVersion := sys.props.getOrElse("avro.testVersion", "1.7.6")
+testAvroVersion := sys.props.getOrElse("avro.testVersion", "1.8.2")
 
 val testAvroMapredVersion = settingKey[String]("The version of avro-mapred to test against.")
 
-testAvroMapredVersion := sys.props.getOrElse("avroMapred.testVersion", "1.7.7")
+testAvroMapredVersion := sys.props.getOrElse("avroMapred.testVersion", "1.8.2")
 
 spAppendScalaVersion := true
 
@@ -36,11 +36,12 @@ sparkComponents := Seq("sql")
 
 libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.5",
-  "org.apache.avro" % "avro" % "1.7.6" exclude("org.mortbay.jetty", "servlet-api"),
-  "org.apache.avro" % "avro-mapred" % "1.7.7"  % "provided" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api"),
+  "org.apache.avro" % "avro" % "1.8.2" exclude("org.mortbay.jetty", "servlet-api"),
+  "org.apache.avro" % "avro-mapred" % "1.8.2"  % "provided" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api"),
   // Kryo is provided by Spark, but we need this here in order to be able to import the @DefaultSerializer annotation:
   "com.esotericsoftware" % "kryo-shaded" % "3.0.3" % "provided",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+  "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+  "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
   "commons-io" % "commons-io" % "2.4" % "test"
 )
 
@@ -49,11 +50,13 @@ val curatorExclusion = ExclusionRule(organization = "org.apache.curator")
 
 libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-client" % testHadoopVersion.value % "test" excludeAll(curatorExclusion),
-  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion),
-  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion),
+  "org.apache.spark" %% "spark-core" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion) exclude("org.scalatest", "scalatest_2.11"),
+  "org.apache.spark" %% "spark-sql" % testSparkVersion.value % "test" exclude("org.apache.hadoop", "hadoop-client") excludeAll(curatorExclusion) exclude("org.scalatest", "scalatest_2.11"),
   "org.apache.avro" % "avro" % testAvroVersion.value % "test" exclude("org.mortbay.jetty", "servlet-api"),
   "org.apache.avro" % "avro-mapred" % testAvroMapredVersion.value  % "test" classifier("hadoop2") exclude("org.mortbay.jetty", "servlet-api")
 )
+
+dependencyOverrides += "org.scalatest" %% "scalatest" % "3.0.5"
 
 // Display full-length stacktraces from ScalaTest:
 testOptions in Test += Tests.Argument("-oF")
