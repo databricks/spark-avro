@@ -16,19 +16,18 @@
 package com.databricks.spark.avro.functions
 
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 
-import org.apache.avro.generic.{GenericData, GenericDatumWriter}
+import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.io.EncoderFactory
 import org.apache.avro.{Schema, SchemaBuilder}
-import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Row, SparkSession}
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
-import org.apache.avro.io.BinaryEncoder
-import org.apache.avro.io.DatumWriter
-import org.apache.avro.io.EncoderFactory
-import org.apache.avro.specific.SpecificDatumWriter
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Ignore, Matchers}
 
+import scala.collection.JavaConverters._
 import scala.util.Random
 
 class FunctionsSuite extends FunSuite with BeforeAndAfterAll
@@ -38,20 +37,51 @@ class FunctionsSuite extends FunSuite with BeforeAndAfterAll
 
   private var spark: SparkSession = _
 
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    spark = SparkSession.builder()
+      .master("local[2]")
+      .appName("FunctionsSuite")
+      .config("spark.sql.files.maxPartitionBytes", 64)
+      .getOrCreate()
+  }
+
+  implicit val arbString: Arbitrary[String] = Arbitrary(Gen.choose(0, 20).map(Random.nextString))
+
+  private val thingSchema: Schema = SchemaBuilder.record("thing").fields()
+    .optionalString("name")
+    .optionalString("value")
+    .endRecord
+  private val arrayOfThingsSchema = SchemaBuilder.array().items(thingSchema)
+
   private val recordSchema = SchemaBuilder.record("test").fields()
     .requiredLong("id")
     .optionalBoolean("disabled")
     .optionalString("name")
     .optionalInt("count")
     .optionalDouble("amount")
+    .name("things").`type`(arrayOfThingsSchema).noDefault()
     .endRecord()
 
-  private val recGen: Gen[GenericData.Record] = for {
+  private val avroSchemaJson: String = recordSchema.toString(false)
+
+  private val thingGen: Gen[GenericRecord] = for {
+    name <- arbitrary[String]
+    value <- arbitrary[String]
+  } yield {
+    val rec = new GenericData.Record(thingSchema)
+    rec.put("name", name)
+    rec.put("value", value)
+    rec
+  }
+
+  private val recGen: Gen[GenericRecord] = for {
     id <- Gen.posNum[Long]
     disabled <- arbitrary[Boolean]
-    name <- Gen.chooseNum(0, 100).map(Random.nextString)
+    name <- arbitrary[String]
     count <- arbitrary[Int]
     amount <- arbitrary[Double]
+    things <- Gen.listOf(thingGen)
   } yield {
     val rec = new GenericData.Record(recordSchema)
     rec.put("id", id)
@@ -59,64 +89,85 @@ class FunctionsSuite extends FunSuite with BeforeAndAfterAll
     rec.put("name", name)
     rec.put("count", count)
     rec.put("amount", amount)
+    rec.put("things", new GenericData.Array[GenericRecord](arrayOfThingsSchema, things.asJava))
     rec
   }
 
-  override protected def beforeAll(): Unit = {
-    super.beforeAll()
-    spark = SparkSession.builder()
-      .master("local[2]")
-      .appName("FunctionsSuite")
-      .config("spark.sql.files.maxPartitionBytes", 1024)
-      .getOrCreate()
-  }
+  private case class SerRecord(idx: Int, record: Array[Byte])
 
-  override protected def afterAll(): Unit = {
-    try {
-      spark.sparkContext.stop()
-    } finally {
-      super.afterAll()
+
+  test("serialize and deserialize test avro record") {
+    val baos = new ByteArrayOutputStream()
+    forAll(recGen) { rec =>
+      baos.reset()
+      val bytes = serialize(recordSchema, rec, baos)
+      val recDes = deserialize(recordSchema, bytes, 0)
+      rec shouldEqual recDes
     }
   }
 
-  case class Record(idx: Int, record: Array[Byte])
-
   test("reading serialized data") {
-    forAll(Gen.nonEmptyListOf(recGen)) { records =>
+    forAll(Gen.choose(0, 4), Gen.nonEmptyListOf(recGen)) { (headerSize, records) =>
+      val baos = new ByteArrayOutputStream()
+
       val rows = records.zipWithIndex.map { case (rec, idx) =>
-        Record(idx, serialize(recordSchema, rec))
+        baos.reset()
+        writeHeader(headerSize, baos)
+        SerRecord(idx, serialize(recordSchema, rec, baos))
       }
       val avroSerDf = spark.createDataFrame(rows)
 
       val decodedDf = avroSerDf
-        .withColumn("avrorec", from_avro(col("record"), recordSchema.toString(false)))
+        .withColumn("avrorec", from_avro(col("record"), avroSchemaJson, headerSize))
         .select(col("idx"), col("avrorec.*"))
         .orderBy(col("idx"))
 
       decodedDf.columns should contain allOf("idx", "id", "disabled", "name", "count", "amount")
       val decodedRows = decodedDf.collect()
       decodedRows should have length records.length
-      decodedRows.map(rowToGenericRecord).toList shouldEqual(records)
+      val decodedRecords = decodedRows.map(rowToGenericRecord).toList
+      decodedRecords shouldEqual records
     }
   }
 
-  private def serialize(schema: Schema, record: GenericData.Record): Array[Byte] = {
-    val baos = new ByteArrayOutputStream()
-    val outputDatumWriter = new GenericDatumWriter[GenericData.Record](schema)
-    val encoder = EncoderFactory.get.binaryEncoder(baos, null)
-    outputDatumWriter.write(record, encoder)
-    encoder.flush()
-    baos.toByteArray
+  /**
+    * Writes given number of bytes with 0xFF simulating a record header of given size.
+    *
+    * @param headerSize Header size
+    * @param baos Byte array output stream
+    */
+  private def writeHeader(headerSize: Int, baos: ByteArrayOutputStream): Unit = {
+    for (_ <- 1 to headerSize) {
+      baos.write(0xFF)
+    }
   }
 
-  def rowToGenericRecord(row: Row): GenericData.Record = {
+  private def rowToGenericRecord(row: Row): GenericData.Record = {
     val rec = new GenericData.Record(recordSchema)
     rec.put("id", row.getAs[Long]("id"))
     rec.put("disabled", row.getAs[Boolean]("disabled"))
     rec.put("name", row.getAs[String]("name"))
     rec.put("count", row.getAs[Int]("count"))
     rec.put("amount", row.getAs[Double]("amount"))
+    val things = row.getAs[Seq[Row]]("things")
+    val things2: List[GenericRecord] = things.toList.map { r =>
+      val rec = new GenericData.Record(thingSchema)
+      rec.put("name", r.getAs[String]("name"))
+      rec.put("value", r.getAs[String]("value"))
+      rec
+    }
+    rec.put("things",
+      new GenericData.Array[GenericRecord](arrayOfThingsSchema, things2.asJava))
     rec
+  }
+
+  private def serialize(schema: Schema, record: GenericRecord,
+                        baos: ByteArrayOutputStream): Array[Byte] = {
+    val outputDatumWriter = new GenericDatumWriter[GenericRecord](schema)
+    val encoder = EncoderFactory.get.binaryEncoder(baos, null)
+    outputDatumWriter.write(record, encoder)
+    encoder.flush()
+    baos.toByteArray
   }
 }
 

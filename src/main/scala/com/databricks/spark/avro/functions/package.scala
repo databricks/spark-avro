@@ -15,13 +15,16 @@
  */
 package com.databricks.spark.avro
 
+import java.io.ByteArrayOutputStream
+import java.util.function.Supplier
+
 import org.apache.avro.Schema
-import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
-import org.apache.avro.io.DecoderFactory
+import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericDatumWriter, GenericRecord}
+import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.spark.sql.{Column, Row}
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
-import org.apache.spark.sql.catalyst.expressions.{ExpectsInputTypes, Expression, GenericInternalRow, UnaryExpression}
+import org.apache.spark.sql.catalyst.expressions.{ExpectsInputTypes, Expression, GenericInternalRow, GenericRow, UnaryExpression}
 import org.apache.spark.sql.types.{BinaryType, DataType, StructType}
 
 package object functions {
@@ -66,15 +69,21 @@ package object functions {
     }
 
     private def parse(payload: Array[Byte]): Any = {
-      val recordLength = payload.length - offsetBytes
-      val decoder = DecoderFactory.get.binaryDecoder(payload, offsetBytes, recordLength, null)
-      val datumReader = new GenericDatumReader[GenericRecord](avroSchema)
-
-      val genericRecord = datumReader.read(null, decoder)
-      val row = recordConverter.apply(genericRecord).asInstanceOf[Row]
-      encoderForDataColumns.toRow(row)
+      val genericRecord = deserialize(avroSchema, payload, offsetBytes)
+      val row = recordConverter.apply(genericRecord).asInstanceOf[GenericRow]
+      val internalRow = encoderForDataColumns.toRow(row)
+      internalRow.copy()
     }
 
     override def inputTypes: Seq[org.apache.spark.sql.types.DataType] = BinaryType :: Nil
+  }
+
+  private[functions] def deserialize(avroSchema: Schema, payload: Array[Byte],
+                                     offsetBytes: Int): GenericRecord = {
+    val recordLength = payload.length - offsetBytes
+    val decoder = DecoderFactory.get.binaryDecoder(payload, offsetBytes, recordLength, null)
+    val datumReader = new GenericDatumReader[GenericRecord](avroSchema)
+
+    datumReader.read(null, decoder)
   }
 }

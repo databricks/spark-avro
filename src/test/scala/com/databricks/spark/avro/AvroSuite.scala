@@ -48,14 +48,6 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       .getOrCreate()
   }
 
-  override protected def afterAll(): Unit = {
-    try {
-      spark.sparkContext.stop()
-    } finally {
-      super.afterAll()
-    }
-  }
-
   test("reading and writing partitioned data") {
     val df = spark.read.avro(episodesFile)
     val fields = List("title", "air_date", "doctor")
