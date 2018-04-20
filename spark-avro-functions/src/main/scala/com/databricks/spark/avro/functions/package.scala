@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.catalyst.expressions.{ExpectsInputTypes, Expression, GenericInternalRow, GenericRow, UnaryExpression}
 import org.apache.spark.sql.types.{BinaryType, DataType, StructType}
+import org.slf4j.LoggerFactory
 
 package object functions {
   /**
@@ -64,7 +65,9 @@ package object functions {
 
     override def nullSafeEval(byteArr: Any): Any = {
       try parse(byteArr.asInstanceOf[Array[Byte]]) catch {
-        case x: Exception => throw x
+        case x: Exception =>
+          LoggerFactory.getLogger(getClass).warn("Unable to parse avro record")
+          null
       }
     }
 
