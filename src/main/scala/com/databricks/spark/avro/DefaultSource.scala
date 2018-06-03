@@ -21,6 +21,7 @@ import java.net.URI
 import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
+import scala.math.Ordering
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
@@ -63,21 +64,31 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
 
     // Schema evolution is not supported yet. Here we only pick the first file sorted by path to
     // figure out the schema of the whole dataset.
-    def sampleFilePath = if (conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)) {
-      files.iterator.map(_.getPath).filter(_.getName.endsWith(".avro"))
-        .reduceOption{ (p1, p2) => if (p1.compareTo(p2) <= 0) p1 else p2 }
-        .getOrElse {
-          throw new FileNotFoundException(
+    def sampleFilePath = {
+      implicit def pathOrdering: Ordering[Path] = Ordering.fromLessThan(
+        (p1: Path, p2: Path) => p1.compareTo(p2) <= 0
+      )
+
+      val ignoreWithoutExtension = conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)
+
+      val paths = if (ignoreWithoutExtension) {
+        files.map(_.getPath).filter(_.getName.endsWith(".avro"))
+      } else {
+        files.map(_.getPath)
+      }
+
+      if (paths.isEmpty) {
+        throw new FileNotFoundException(
+          if (ignoreWithoutExtension) {
             "No Avro files found. Hadoop option \"avro.mapred.ignore.inputs.without.extension\" " +
-              "is set to true. Do all input files have \".avro\" extension?"
-          )
-        }
-    } else {
-      files.iterator.map(_.getPath)
-        .reduceOption{ (p1, p2) => if (p1.compareTo(p2) <= 0) p1 else p2 }
-        .getOrElse{
-          throw new FileNotFoundException("No Avro files found.")
-        }
+            "is set to true. Do all input files have \".avro\" extension?"
+          } else {
+            "No Avro files found."
+          }
+        )
+      } else {
+        paths.min
+      }
     }
 
     // User can specify an optional avro json schema.
