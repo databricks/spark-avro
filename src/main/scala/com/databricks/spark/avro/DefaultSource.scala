@@ -20,8 +20,8 @@ import java.io._
 import java.net.URI
 import java.util.zip.Deflater
 
-import scala.util.control.NonFatal
 import scala.math.Ordering
+import scala.util.control.NonFatal
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
