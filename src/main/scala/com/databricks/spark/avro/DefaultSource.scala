@@ -20,6 +20,7 @@ import java.io._
 import java.net.URI
 import java.util.zip.Deflater
 
+import scala.math.Ordering
 import scala.util.control.NonFatal
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
@@ -61,24 +62,38 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       files: Seq[FileStatus]): Option[StructType] = {
     val conf = spark.sparkContext.hadoopConfiguration
 
-    // Schema evolution is not supported yet. Here we only pick a single random sample file to
+    // Schema evolution is not supported yet. Here we only pick the last file sorted by path to
     // figure out the schema of the whole dataset.
-    val sampleFile = if (conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)) {
-      files.find(_.getPath.getName.endsWith(".avro")).getOrElse {
-        throw new FileNotFoundException(
-          "No Avro files found. Hadoop option \"avro.mapred.ignore.inputs.without.extension\" is " +
-            "set to true. Do all input files have \".avro\" extension?"
-        )
+    def sampleFilePath = {
+      implicit def pathOrdering: Ordering[Path] = Ordering.fromLessThan(
+        (p1: Path, p2: Path) => p1.compareTo(p2) <= 0
+      )
+
+      val ignoreWithoutExtension = conf.getBoolean(IgnoreFilesWithoutExtensionProperty, true)
+
+      val paths = if (ignoreWithoutExtension) {
+        files.map(_.getPath).filter(_.getName.endsWith(".avro"))
+      } else {
+        files.map(_.getPath)
       }
-    } else {
-      files.headOption.getOrElse {
-        throw new FileNotFoundException("No Avro files found.")
+
+      if (paths.isEmpty) {
+        throw new FileNotFoundException(
+          if (ignoreWithoutExtension) {
+            "No Avro files found. Hadoop option \"avro.mapred.ignore.inputs.without.extension\" " +
+            "is set to true. Do all input files have \".avro\" extension?"
+          } else {
+            "No Avro files found."
+          }
+        )
+      } else {
+        paths.max
       }
     }
 
     // User can specify an optional avro json schema.
     val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse).getOrElse {
-      val in = new FsInput(sampleFile.getPath, conf)
+      val in = new FsInput(sampleFilePath, conf)
       try {
         val reader = DataFileReader.openReader(in, new GenericDatumReader[GenericRecord]())
         try {
