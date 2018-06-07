@@ -62,7 +62,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       files: Seq[FileStatus]): Option[StructType] = {
     val conf = spark.sparkContext.hadoopConfiguration
 
-    // Schema evolution is not supported yet. Here we only pick the first file sorted by path to
+    // Schema evolution is not supported yet. Here we only pick the last file sorted by path to
     // figure out the schema of the whole dataset.
     def sampleFilePath = {
       implicit def pathOrdering: Ordering[Path] = Ordering.fromLessThan(
@@ -87,7 +87,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           }
         )
       } else {
-        paths.min
+        paths.max
       }
     }
 
