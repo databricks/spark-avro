@@ -32,5 +32,9 @@ package object avro {
    */
   implicit class AvroDataFrameReader(reader: DataFrameReader) {
     def avro: String => DataFrame = reader.format("com.databricks.spark.avro").load
+
+    @scala.annotation.varargs
+    def avro(sources: String*): DataFrame =
+      reader.format("com.databricks.spark.avro").load(sources: _*)
   }
 }
