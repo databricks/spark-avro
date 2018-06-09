@@ -143,9 +143,9 @@ object SchemaConverters {
     targetSqlType: DataType): AnyRef => AnyRef = {
 
     def createConverter(avroSchema: Schema,
-        sqlType: DataType, path: List[String]): AnyRef => AnyRef = {
+      sparkSqlType: DataType, path: List[String]): AnyRef => AnyRef = {
       val avroType = avroSchema.getType
-      (sqlType, avroType) match {
+      (sparkSqlType, avroType) match {
         case (StringType, ENUM) => (item: AnyRef) => item.toString
         case (StringType, STRING) | (IntegerType, INT) |
              (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
@@ -229,30 +229,30 @@ object SchemaConverters {
                 (k.toString, valueConverter(v))
               }
             }.toMap
-        case (sqlUnionType, UNION) =>
+        case (sqlType, UNION) =>
           if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
             val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
             if (remainingUnionTypes.size == 1) {
-              createConverter(remainingUnionTypes.head, sqlUnionType, path)
+              createConverter(remainingUnionTypes.head, sqlType, path)
             } else {
-              createConverter(Schema.createUnion(remainingUnionTypes.asJava), sqlUnionType, path)
+              createConverter(Schema.createUnion(remainingUnionTypes.asJava), sqlType, path)
             }
           } else avroSchema.getTypes.asScala.map(_.getType) match {
-            case Seq(t1) => createConverter(avroSchema.getTypes.get(0), sqlUnionType, path)
-            case Seq(a, b) if Set(a, b) == Set(INT, LONG) && sqlUnionType == LongType =>
+            case Seq(t1) => createConverter(avroSchema.getTypes.get(0), sqlType, path)
+            case Seq(a, b) if Set(a, b) == Set(INT, LONG) && sqlType == LongType =>
               (item: AnyRef) =>
                 item match {
                   case l: java.lang.Long => l
                   case i: java.lang.Integer => new java.lang.Long(i.longValue())
                 }
-            case Seq(a, b) if Set(a, b) == Set(FLOAT, DOUBLE) && sqlUnionType == DoubleType =>
+            case Seq(a, b) if Set(a, b) == Set(FLOAT, DOUBLE) && sqlType == DoubleType =>
               (item: AnyRef) =>
                 item match {
                   case d: java.lang.Double => d
                   case f: java.lang.Float => new java.lang.Double(f.doubleValue())
                 }
             case other =>
-              sqlUnionType match {
+              sqlType match {
                 case t: StructType if t.fields.length == avroSchema.getTypes.size =>
                   val fieldConverters = t.fields.zip(avroSchema.getTypes.asScala).map {
                     case (field, schema) =>
@@ -266,7 +266,7 @@ object SchemaConverters {
                 case _ => throw new IncompatibleSchemaException(
                   s"Cannot convert Avro schema to catalyst type because schema at path " +
                     s"${path.mkString(".")} is not compatible " +
-                    s"(avroType = $other, sqlType = $sqlUnionType). \n" +
+                    s"(avroType = $other, sqlType = $sqlType). \n" +
                     s"Source Avro schema: $sourceAvroSchema.\n" +
                     s"Target Catalyst type: $targetSqlType")
               }
