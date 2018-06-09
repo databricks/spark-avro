@@ -21,8 +21,8 @@ import java.net.URI
 import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
-
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
+import com.databricks.spark.avro.generic.SparkGenericDatumReader
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
@@ -34,7 +34,6 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.Job
 import org.slf4j.LoggerFactory
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
@@ -178,10 +177,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         val reader = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
           try {
-            val datumReader = userProvidedSchema match {
-              case Some(userSchema) => new GenericDatumReader[GenericRecord](userSchema)
-              case _ => new GenericDatumReader[GenericRecord]()
-            }
+            val datumReader = new SparkGenericDatumReader()
+            userProvidedSchema.foreach(datumReader.setSchema)
             DataFileReader.openReader(in, datumReader)
           } catch {
             case NonFatal(e) =>
