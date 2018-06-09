@@ -143,14 +143,12 @@ object SchemaConverters {
     targetSqlType: DataType): AnyRef => AnyRef = {
 
     def createConverter(avroSchema: Schema,
-        sqlType: DataType, path: List[String]): AnyRef => AnyRef = {
+      sparkSqlType: DataType, path: List[String]): AnyRef => AnyRef = {
       val avroType = avroSchema.getType
-      (sqlType, avroType) match {
-        // Avro strings are in Utf8, so we have to call toString on them
-        case (StringType, STRING) | (StringType, ENUM) =>
-          (item: AnyRef) => item.toString
-        // Byte arrays are reused by avro, so we have to make a copy of them.
-        case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
+      (sparkSqlType, avroType) match {
+        case (StringType, ENUM) => (item: AnyRef) => item.toString
+        case (StringType, STRING) | (IntegerType, INT) |
+             (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
              (FloatType, FLOAT) | (LongType, LONG) =>
           identity
         case (TimestampType, LONG) =>
@@ -160,7 +158,8 @@ object SchemaConverters {
         case (BinaryType, FIXED) =>
           (item: AnyRef) => item.asInstanceOf[GenericFixed].bytes().clone()
         case (BinaryType, BYTES) =>
-          (item: AnyRef) =>
+          // Byte arrays are reused by avro, so we have to make a copy of them.
+        (item: AnyRef) =>
             val byteBuffer = item.asInstanceOf[ByteBuffer]
             val bytes = new Array[Byte](byteBuffer.remaining)
             byteBuffer.get(bytes)

@@ -23,6 +23,7 @@ import java.util.zip.Deflater
 import scala.util.control.NonFatal
 
 import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
+import com.databricks.spark.avro.generic.SparkGenericDatumReader
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
@@ -178,10 +179,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         val reader = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
           try {
-            val datumReader = userProvidedSchema match {
-              case Some(userSchema) => new GenericDatumReader[GenericRecord](userSchema)
-              case _ => new GenericDatumReader[GenericRecord]()
-            }
+            val datumReader = new SparkGenericDatumReader()
+            userProvidedSchema.foreach(datumReader.setSchema)
             DataFileReader.openReader(in, datumReader)
           } catch {
             case NonFatal(e) =>
@@ -210,9 +209,11 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
           private val encoderForDataColumns = RowEncoder(requiredSchema)
 
           private[this] var completed = false
+          private var record: GenericRecord = _
 
           override def hasNext: Boolean = {
             if (completed) {
+              record = null
               false
             } else {
               val r = reader.hasNext && !reader.pastSync(stop)
@@ -228,7 +229,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
             if (reader.pastSync(stop)) {
               throw new NoSuchElementException("next on empty iterator")
             }
-            val record = reader.next()
+
+            // record is reused by avro, we copy it's content with rowconverter
+            record = reader.next(record)
             val safeDataRow = rowConverter(record).asInstanceOf[GenericRow]
 
             // The safeDataRow is reused, we must do a copy
