@@ -22,7 +22,7 @@ import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
 
-import com.databricks.spark.avro.DefaultSource.{AvroSchema, IgnoreFilesWithoutExtensionProperty, SerializableConfiguration}
+import com.databricks.spark.avro.DefaultSource.{AvroSchema, SerializableConfiguration}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
