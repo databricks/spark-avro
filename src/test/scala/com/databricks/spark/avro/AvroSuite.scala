@@ -38,6 +38,7 @@ import org.apache.spark.sql.types._
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val episodesWithoutExtension = "src/test/resources/episodesAvro"
 
   private var spark: SparkSession = _
 
@@ -622,7 +623,7 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       spark.read.avro("*/*/*/*/*/*/*/something.avro")
     }
 
-    intercept[FileNotFoundException] {
+    intercept[java.io.IOException] {
       TestUtils.withTempDir { dir =>
         FileUtils.touch(new File(dir, "test"))
         spark.read.avro(dir.toString)
@@ -807,5 +808,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       // Check if the written DataFrame is equals than read DataFrame
       assert(readDf.collect().sameElements(writeDf.collect()))
     }
+  }
+
+  test("reading files without .avro extension") {
+    val df1 = spark.read.avro(episodesWithoutExtension)
+    assert(df1.count == 8)
+
+    val schema = new StructType()
+      .add("title", StringType)
+      .add("air_date", StringType)
+      .add("doctor", IntegerType)
+    val df2 = spark.read.schema(schema).avro(episodesWithoutExtension)
+    assert(df2.count == 8)
   }
 }
