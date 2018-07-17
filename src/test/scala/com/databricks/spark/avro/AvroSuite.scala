@@ -17,7 +17,8 @@
 package com.databricks.spark.avro
 
 import java.io._
-import java.nio.file.Files
+import java.net.URL
+import java.nio.file.{Files, Path, Paths}
 import java.sql.{Date, Timestamp}
 import java.util.{TimeZone, UUID}
 
@@ -38,6 +39,7 @@ import org.apache.spark.sql.types._
 class AvroSuite extends FunSuite with BeforeAndAfterAll {
   val episodesFile = "src/test/resources/episodes.avro"
   val testFile = "src/test/resources/test.avro"
+  val episodesWithoutExtension = "src/test/resources/episodesAvro"
 
   private var spark: SparkSession = _
 
@@ -625,7 +627,12 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
     intercept[FileNotFoundException] {
       TestUtils.withTempDir { dir =>
         FileUtils.touch(new File(dir, "test"))
-        spark.read.avro(dir.toString)
+        val hadoopConf = spark.sqlContext.sparkContext.hadoopConfiguration
+        try {
+          hadoopConf.set(DefaultSource.IgnoreFilesWithoutExtensionProperty, "true")
+          spark.read.avro(dir.toString)
+        } finally {
+          hadoopConf.unset(DefaultSource.IgnoreFilesWithoutExtensionProperty)        }
       }
     }
 
@@ -687,12 +694,18 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       Files.createFile(new File(tempSaveDir, "non-avro").toPath)
 
-      val newDf = spark
-        .read
-        .option(DefaultSource.IgnoreFilesWithoutExtensionProperty, "true")
-        .avro(tempSaveDir)
+      val hadoopConf = spark.sqlContext.sparkContext.hadoopConfiguration
+      val count = try {
+        hadoopConf.set(DefaultSource.IgnoreFilesWithoutExtensionProperty, "true")
+        val newDf = spark
+          .read
+          .avro(tempSaveDir)
+        newDf.count()
+      } finally {
+        hadoopConf.unset(DefaultSource.IgnoreFilesWithoutExtensionProperty)
+      }
 
-      assert(newDf.count == 8)
+      assert(count == 8)
     }
   }
 
@@ -806,6 +819,26 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       val readDf = spark.read.avro(outputFolder)
       // Check if the written DataFrame is equals than read DataFrame
       assert(readDf.collect().sameElements(writeDf.collect()))
+    }
+  }
+
+  test("do not ignore files without .avro extension by default") {
+    TestUtils.withTempDir { dir =>
+      dir.mkdirs()
+      Files.copy(
+        Paths.get(episodesWithoutExtension),
+        Paths.get(dir.getCanonicalPath, "episodes"))
+
+      val fileWithoutExtension = s"${dir.getCanonicalPath}/episodes"
+      val df1 = spark.read.avro(fileWithoutExtension)
+      assert(df1.count == 8)
+
+      val schema = new StructType()
+        .add("title", StringType)
+        .add("air_date", StringType)
+        .add("doctor", IntegerType)
+      val df2 = spark.read.schema(schema).avro(fileWithoutExtension)
+      assert(df2.count == 8)
     }
   }
 }
