@@ -18,6 +18,7 @@ package com.databricks.spark.avro
 
 import java.io._
 import java.net.URI
+import java.util.concurrent.TimeUnit
 import java.util.zip.Deflater
 
 import scala.util.control.NonFatal
@@ -114,6 +115,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       options: Map[String, String],
       dataSchema: StructType): OutputWriterFactory = {
     val recordName = options.getOrElse("recordName", "topLevelRecord")
+    val timeUnitName = options.getOrElse("timeUnit", "milliseconds")
+    val timeUnit = TimeUnit.valueOf(timeUnitName.toUpperCase)
     val recordNamespace = options.getOrElse("recordNamespace", "")
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
     val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
@@ -145,7 +148,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         log.error(s"unsupported compression codec $unknown")
     }
 
-    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace)
+    new AvroOutputWriterFactory(dataSchema, recordName, recordNamespace, timeUnit)
   }
 
   override def buildReader(
