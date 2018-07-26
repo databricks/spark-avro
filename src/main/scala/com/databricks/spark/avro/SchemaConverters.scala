@@ -53,6 +53,7 @@ object SchemaConverters {
       case LONG => SchemaType(LongType, nullable = false)
       case FIXED => SchemaType(BinaryType, nullable = false)
       case ENUM => SchemaType(StringType, nullable = false)
+      case NULL => SchemaType(NullType, nullable = false)
 
       case RECORD =>
         val fields = avroSchema.getFields.asScala.map { f =>
@@ -151,7 +152,7 @@ object SchemaConverters {
           (item: AnyRef) => item.toString
         // Byte arrays are reused by avro, so we have to make a copy of them.
         case (IntegerType, INT) | (BooleanType, BOOLEAN) | (DoubleType, DOUBLE) |
-             (FloatType, FLOAT) | (LongType, LONG) =>
+             (FloatType, FLOAT) | (LongType, LONG) | (NullType, NULL) | (NullType, STRING) =>
           identity
         case (TimestampType, LONG) =>
           (item: AnyRef) => new Timestamp(item.asInstanceOf[Long])

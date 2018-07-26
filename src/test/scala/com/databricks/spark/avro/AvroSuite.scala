@@ -116,9 +116,8 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       dataFileWriter.flush()
       dataFileWriter.close()
 
-      intercept[IncompatibleSchemaException] {
-        spark.read.avro(s"$dir.avro")
-      }
+      val df = spark.read.avro(s"$dir.avro")
+      assert(df.count() == 1)
     }
   }
 
