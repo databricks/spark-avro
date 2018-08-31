@@ -45,7 +45,8 @@ private[avro] class AvroOutputWriter(
     recordName: String,
     recordNamespace: String) extends OutputWriter {
 
-  private lazy val converter = createConverterToAvro(schema, recordName, recordNamespace)
+  private lazy val converter = createConverterToAvro(schema, recordName,
+    SchemaNsNaming.fromName(recordNamespace))
   // copy of the old conversion logic after api change in SPARK-19085
   private lazy val internalRowConverter =
     CatalystTypeConverters.createToScalaConverter(schema).asInstanceOf[InternalRow => Row]
@@ -89,7 +90,7 @@ private[avro] class AvroOutputWriter(
   private def createConverterToAvro(
       dataType: DataType,
       structName: String,
-      recordNamespace: String): (Any) => Any = {
+      recordNamespace: SchemaNsNaming): (Any) => Any = {
     dataType match {
       case BinaryType => (item: Any) => item match {
         case null => null
@@ -97,16 +98,21 @@ private[avro] class AvroOutputWriter(
       }
       case ByteType | ShortType | IntegerType | LongType |
            FloatType | DoubleType | StringType | BooleanType => identity
-      case _: DecimalType => (item: Any) => if (item == null) null else item.toString
+      case dt: DecimalType => (item: Any) =>
+        Option(item).map { i =>
+          val bigDecimalValue = i.asInstanceOf[java.math.BigDecimal]
+          val unscaledValue = bigDecimalValue.unscaledValue()
+          ByteBuffer.wrap(unscaledValue.toByteArray)
+        }.orNull
       case TimestampType => (item: Any) =>
-        if (item == null) null else item.asInstanceOf[Timestamp].getTime
+        Option(item).map(_.asInstanceOf[Timestamp].getTime).orNull
       case DateType => (item: Any) =>
-        if (item == null) null else item.asInstanceOf[Date].getTime
+        Option(item).map(_.asInstanceOf[Date].toLocalDate.toEpochDay.toInt).orNull
       case ArrayType(elementType, _) =>
         val elementConverter = createConverterToAvro(
           elementType,
           structName,
-          SchemaConverters.getNewRecordNamespace(elementType, recordNamespace, structName))
+          recordNamespace.arrayFieldNaming(structName, elementType))
         (item: Any) => {
           if (item == null) {
             null
@@ -126,7 +132,7 @@ private[avro] class AvroOutputWriter(
         val valueConverter = createConverterToAvro(
           valueType,
           structName,
-          SchemaConverters.getNewRecordNamespace(valueType, recordNamespace, structName))
+          recordNamespace.mapFieldNaming(structName, valueType))
         (item: Any) => {
           if (item == null) {
             null
@@ -139,14 +145,14 @@ private[avro] class AvroOutputWriter(
           }
         }
       case structType: StructType =>
-        val builder = SchemaBuilder.record(structName).namespace(recordNamespace)
+        val builder = SchemaBuilder.record(structName).namespace(recordNamespace.currentNamespace)
         val schema: Schema = SchemaConverters.convertStructToAvro(
           structType, builder, recordNamespace)
         val fieldConverters = structType.fields.map(field =>
           createConverterToAvro(
             field.dataType,
             field.name,
-            SchemaConverters.getNewRecordNamespace(field.dataType, recordNamespace, field.name)))
+            recordNamespace.structFieldNaming(field.name)))
         (item: Any) => {
           if (item == null) {
             null

@@ -116,7 +116,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
     val recordName = options.getOrElse("recordName", "topLevelRecord")
     val recordNamespace = options.getOrElse("recordNamespace", "")
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build,
+      SchemaNsNaming.fromName(recordNamespace))
 
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
     val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"

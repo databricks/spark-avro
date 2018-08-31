@@ -20,6 +20,7 @@ import java.io._
 import java.net.URL
 import java.nio.file.{Files, Path, Paths}
 import java.sql.{Date, Timestamp}
+import java.time.LocalDate
 import java.util.{TimeZone, UUID}
 
 import scala.collection.JavaConverters._
@@ -310,22 +311,28 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("Date field type") {
+    def toLocalDateSafe(d: Date) = Option(d).map(_.toLocalDate).orNull
+    val sparkFinal = spark
     TestUtils.withTempDir { dir =>
       val schema = StructType(Seq(
         StructField("float", FloatType, true),
         StructField("date", DateType, true)
       ))
       TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+      val ld1 = LocalDate.of(2016, 1, 4)
+      val ld2 = LocalDate.of(2016, 4, 7)
       val rdd = spark.sparkContext.parallelize(Seq(
         Row(1f, null),
-        Row(2f, new Date(1451948400000L)),
-        Row(3f, new Date(1460066400500L))
+        Row(2f, Date.valueOf(ld1)),
+        Row(3f, Date.valueOf(ld2))
       ))
       val df = spark.createDataFrame(rdd, schema)
       df.write.avro(dir.toString)
       assert(spark.read.avro(dir.toString).count == rdd.count)
-      assert(spark.read.avro(dir.toString).select("date").collect().map(_(0)).toSet ==
-        Array(null, 1451865600000L, 1459987200000L).toSet)
+
+      val actualResults = spark.read.avro(dir.toString).select("date").collect()
+        .map(_(0).asInstanceOf[Date]).map(toLocalDateSafe).toSet
+      assert(actualResults == Set(null, ld1, ld2))
     }
   }
 
@@ -491,10 +498,14 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       for (i <- arrayOfByte.indices) {
         arrayOfByte(i) = i.toByte
       }
+      val ts1 = new Timestamp(666)
+      val ts2 = new Timestamp(777)
+      val ts3 = new Timestamp(42)
+      val decimalPi = new java.math.BigDecimal("3.14")
       val cityRDD = spark.sparkContext.parallelize(Seq(
-        Row("San Francisco", 12, new Timestamp(666), null, arrayOfByte),
-        Row("Palo Alto", null, new Timestamp(777), null, arrayOfByte),
-        Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
+        Row("San Francisco", 12, ts1, null, arrayOfByte),
+        Row("Palo Alto", null, ts2, null, arrayOfByte),
+        Row("Munich", 8, ts3, decimalPi, arrayOfByte)))
       val cityDataFrame = spark.createDataFrame(cityRDD, testSchema)
 
       val avroDir = tempDir + "/avro"
@@ -503,11 +514,11 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
 
       // TimesStamps are converted to longs
       val times = spark.read.avro(avroDir).select("Time").collect()
-      assert(times.map(_(0)).toSet == Set(666, 777, 42))
+      assert(times.map(_(0)).toSet == Set(ts1, ts2, ts3))
 
       // DecimalType should be converted to string
       val decimals = spark.read.avro(avroDir).select("Decimal").collect()
-      assert(decimals.map(_(0)).contains("3.14"))
+      assert(decimals.map(_(0)).contains(decimalPi))
 
       // There should be a null entry
       val length = spark.read.avro(avroDir).select("Length").collect()
