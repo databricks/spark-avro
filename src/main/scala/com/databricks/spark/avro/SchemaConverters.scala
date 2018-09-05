@@ -73,8 +73,8 @@ object SchemaConverters {
 
     val logicalTypesConverter: PartialFunction[Schema, SchemaType] = {
       case s if LogicalTypePredicates.DECIMAL.apply(s) =>
-        val precision = s.getJsonProp("precision").asInt(DecimalType.MAX_PRECISION)
-        val scale = s.getJsonProp("scale").asInt(0)
+        val precision = s.getJsonProp("precision").asInt(DecimalType.MAX_PRECISION) min DecimalType.MAX_PRECISION
+        val scale = s.getJsonProp("scale").asInt(0) min DecimalType.MAX_SCALE
         SchemaType(DataTypes.createDecimalType(precision, scale), nullable = false)
 
       case s if LogicalTypePredicates.TIMESTAMP.apply(s) =>
