@@ -1,4 +1,7 @@
-# Avro Data Source for Apache Spark
+# Avro Data Source for Apache Spark (2.3.x or earlier)
+
+Databricks has donated this library to the Apache Spark project, as of [Spark 2.4.0](https://spark.apache.org/releases/spark-release-2-4-0.html). Databricks customers can also use this library directly on the [Databricks Unified Analytics Platform](https://www.databricks.com) without any additional dependency configurations. The rest of this file is the README for older versions.
+
 
 A library for reading and writing Avro data from [Spark SQL](http://spark.apache.org/docs/latest/sql-programming-guide.html).
 
